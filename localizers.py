@@ -21,7 +21,7 @@ def noise_subspace_decomposition(SCM, n_sources=None):
     identity[:, list(np.arange(nChan)), list(np.arange(nChan))] = 1
     
     UUh = identity - np.einsum('fik,fjk->fij', eigvec_s, eigvec_s.conj())
-    
+
     # UUh = np.einsum('fik,fjk->fij', eigvec_n, eigvec_n.conj())
     return UUh
     

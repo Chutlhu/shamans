@@ -31,17 +31,16 @@ import pyroomacoustics as pra
 
 from pprint import pprint
 
-expertiment_folder = Path("/home/dicarlod/Documents/Code/NeuralSteerer/")
+expertiment_folder = Path("./")
 path_to_speech_data = expertiment_folder / "data/SmallTimit"
-path_to_best_models = expertiment_folder / "results_tmp/talsp_good_baselines/best_model_interps.txt"
-path_to_resolved_models = expertiment_folder / "results_tmp/eusipco2025/models"
+path_to_resolved_models = expertiment_folder / "data/selected_models" 
 
 
-results_dir = expertiment_folder / "results_tmp/eusipco2025/"
+results_dir = expertiment_folder / "results/"
 results_dir.mkdir(parents=True, exist_ok=True)
-figure_dir = expertiment_folder / "results_tmp/eusipco2025/figures"
+figure_dir = expertiment_folder / "results/figures"
 figure_dir.mkdir(parents=True, exist_ok=True)
-output_dir = expertiment_folder / "results_tmp/eusipco2025/output"
+output_dir = expertiment_folder / "results/output"
 output_dir.mkdir(parents=True, exist_ok=True)
 
 eusipco_names_to_exp_name = {
@@ -68,28 +67,15 @@ parser.add_argument('--seed', type=int, default=13, help='Random seed used for t
 parser.add_argument('--sv-normalization', action='store_true', help='Normalize the steering vectors')
 parser.add_argument('--exp-id', type=int, default=None, help='Name of the experiment')
 
-def make_data(src_doas_idx, sound_duration, SNR, noise_type='white', add_reverberation=False, fs=48000, duration=0.5):
+def make_data(src_doas_idx, sound_duration, SNR, noise_type='white', add_reverberation=False):
     
     file_name_data = f"doas-{src_doas_idx}_snr-{snr}_noise-{noise_type}_reverb-{add_reverberation}"
     
     # # Load the ground truth data
-    # data_dict = load_ground_truth_data(path_to_best_models) # dict(x, y, svect)
-    # coords = data_dict['x']           # [nFreq x nEle x nAzi x nChan x 6]
-    # svect_ref = data_dict['y']        # [nFreq x nEle x nAzi x nChan x 1]
-    
-    # nfft = data_dict['params']['nfft']
-    
-    # print("Problem dimensions:")
-    # print("coords.shape: ", coords.shape)
-    # print("svect_ref.shape: ", svect_ref.shape)
-    
-    # coords = rearrange(coords, 'f el az ch d -> f (el az) ch d')
-    # svect_ref = rearrange(svect_ref, 'f el az ch d -> f (el az) (ch d)')
-
     path_to_model = path_to_resolved_models / f"ref_nObs-8_seed-13.pkl"
     resolved_sv_dict = load_resolved_svects(path_to_model) # dict(x, y, svect)
-    nfft = resolved_sv_dict['nfft']
-    fs = resolved_sv_dict['fs']
+    nfft = int(resolved_sv_dict['nfft'])
+    fs = int(resolved_sv_dict['fs'])
 
     coords = resolved_sv_dict['coords'] # [nFreq x nDoas x nChan x 6]
     svect_ref = resolved_sv_dict['svects'] # [nFreq x nDoas x nChan x 1]
@@ -222,35 +208,6 @@ def localize(
     ):
     
     # Load the ground truth data
-    # data_dict = load_ground_truth_data(path_to_best_models) # dict(x, y, svect)
-    
-    # coords = discrete_sv_dict['x']           # [nFreq x nEle x nAzi x nChan x 6]
-    # svect_alg = discrete_sv_dict['svects']   # [nFreq x nEle x nAzi x nChan x 1]
-    # svect_ref = discrete_sv_dict['y']        # [nFreq x nEle x nAzi x nChan x 1]
-    
-    # print("Problem dimensions:")
-    # print("coords.shape: ", coords.shape)
-    # print("svect_alg.shape: ", svect_alg.shape)
-    # print("svect_ref.shape: ", svect_ref.shape)
-    # nFreq, nAzi, nEle, nChan, nVars = coords.shape
-    
-    # coords = rearrange(coords, 'f el az ch d -> f (el az) ch d')
-    # svect_alg = rearrange(svect_alg, 'f el az ch d -> f (el az) (ch d)')
-    # svect_ref = rearrange(svect_ref, 'f el az ch d -> f (el az) (ch d)')
-    
-    # # Load upsampled svects
-    # if sv_method == 'ref':
-    #     svect_est = svect_ref
-    # elif sv_method == 'alg':
-    #     svect_est = svect_alg
-    # else:
-    #     sv_method_exp_name = eusipco_names_to_exp_name[sv_method]
-    #     results_dict = load_upsampled_svects(path_to_best_models, nObs, seed, sv_method_exp_name)
-    #     svect_est = results_dict['y_pred']  # [nFreq x (nEle x nAzi) x nChan x 1]
-    #     # model_fn = results_dict['model_fn']
-    # print("svect_est.shape: ", svect_est.shape)
-    # svect_est = svect_est.reshape(svect_ref.shape)
-    
     path_to_model = path_to_resolved_models / f"{sv_method}_nObs-{nObs}_seed-{seed}.pkl"
     resolved_sv_dict = load_resolved_svects(path_to_model) # dict(x, y, svect)
     
@@ -272,8 +229,8 @@ def localize(
         svect = svect / np.linalg.norm(svect, axis=-1, keepdims=True)
     
     # Sound source localization 
-    nfft = resolved_sv_dict['nfft']
-    fs =  resolved_sv_dict['fs']
+    nfft = int(resolved_sv_dict['nfft'])
+    fs =  int(resolved_sv_dict['fs'])
     X = librosa.stft(mixture, n_fft=nfft, hop_length=nfft//2) # [nChan, nfft/2, nFrames]
     X = X[:,:nFreq,:] # [nChan, nFreq, nFrames]
     
@@ -295,13 +252,6 @@ def localize(
     # estimate source location, get the n_sources highest peaks
     ang_spec_poll = np.mean(ang_spec, axis=1) # pool over frequencies
     ang_spec_poll = ang_spec_poll / np.max(ang_spec_poll)
-    # doas_est_idx, _ = find_peaks(ang_spec_poll)
-    # sorted_indices = np.argsort(-ang_spec_poll[doas_est_idx])
-    # doas_est_idx = doas_est_idx[sorted_indices[:n_sources]]
-    # doas_est_idx = scipy.signal.argrelextrema(
-    #     ang_spec_poll,
-    #     comparator=np.greater, order=5, mode='wrap', 
-    # )
     doas_est_idx = find_peaks(ang_spec_poll, k=n_sources)
     if len(doas_est_idx) < n_sources:
         # it means that find peaks f
@@ -476,19 +426,12 @@ if __name__ == "__main__":
                     
                     results = {
                         "doas_est_idx_s1": doas_est_idx[0],
-                        # "doas_est_idx_s2": doas_est_idx[1],
                         "doas_ref_idx_s1": doas_ref_idx[0],
-                        # "doas_ref_idx_s2": doas_ref_idx[1],
                         "doas_ref_s1_az": doas_ref[0][1],
                         "doas_ref_s1_el": doas_ref[0][0],
-                        # "doas_ref_s2_az": doas_ref[1][1],
-                        # "doas_ref_s2_el": doas_ref[1][0],
                         "doas_est_s1_az": doas_est[0][1],
                         "doas_est_s1_el": doas_est[0][0],
-                        # "doas_est_s2_az": doas_est[1][1],
-                        # "doas_est_s2_el": doas_est[1][0],
                         "error_s1": error[0],
-                        # "error_s2": error[1],
                     }
 
                     scene_parameters = dict(

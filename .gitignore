@@ -174,3 +174,5 @@ cython_debug/
 # Exclude some folders
 data/selected_models
 data/SmallTimit
+data/models
+results/
