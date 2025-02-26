@@ -14,7 +14,7 @@ from pathlib import Path
 import pickle
 from tqdm import tqdm
 
-from localizers import methods as ang_spect_methods
+from localizers import alpha_stable, inv_wishart, wishart, music, srp_phat
 
 import pandas as pd
 import numpy as np
@@ -43,6 +43,7 @@ figure_dir.mkdir(parents=True, exist_ok=True)
 output_dir = expertiment_folder / "results/output"
 output_dir.mkdir(parents=True, exist_ok=True)
 
+
 eusipco_names_to_exp_name = {
     "nf": "nf-subfreq",
     "nf-gw": "nf-subfreq-gw",
@@ -54,6 +55,15 @@ eusipco_names_to_exp_name = {
 }
 
 
+ang_spect_methods = {
+    'alpha_0.8': lambda X, svect : alpha_stable(X, svect, alpha=0.8),
+    'alpha_1.2': lambda X, svect : alpha_stable(X, svect, alpha=1.2),
+    'alpha_1.8': lambda X, svect : alpha_stable(X, svect, alpha=1.8),
+    'music': music,
+    'srp_phat': srp_phat,
+    'wishart': wishart,
+    'inv_wishart': inv_wishart,
+}
 ang_spect_methods_choices = ang_spect_methods.keys()
 sv_methods_choices = eusipco_names_to_exp_name.keys()
 sv_nObs_choice = [8, 16, 32, 64, 128]
@@ -64,6 +74,7 @@ parser = argparse.ArgumentParser(description='Sound Source Localization with NSt
 parser.add_argument('--sv-method', type=str, default='nf-subfreq', help='Steering vector interpolation method', choices=['nf', 'nf-gw' 'nn', 'sp', 'pinn', 'gp-steerer'])
 parser.add_argument('--nObs', type=int, default=8, help='Number of observations used to fit the sv model', choices=[8, 16, 32, 64, 128])
 parser.add_argument('--seed', type=int, default=13, help='Random seed used for training the interpolation methods', choices=[13, 42, 666])
+parser.add_argument('--alpha', type=float, default=1.2, help='Alpha parameter for the alpha-stable distribution')
 parser.add_argument('--exp-id', type=int, default=None, help='Name of the experiment')
 
 def make_data(src_doas_idx, sound_duration, SNR, noise_type='white', add_reverberation=False, mc_seed=1):
@@ -198,6 +209,7 @@ def load_resolved_svects(path_to_model):
         sv_dict = pickle.load(f)
     return sv_dict
 
+
 def localize(
     mixture: np.ndarray, 
     loc_method: str,
@@ -329,7 +341,7 @@ def process_experiment(
     plt.close()
     
     print("Ground truth DOAs: ", doas_ref)
-    error, doas_est, perm = compute_metrics(doas_ref, doas_est)
+    error, doas_est, perm = compute_metrics(doas_est, doas_ref)
     doas_est_idx = [doas_est_idx[i] for i in perm]
     print("Best permutation: ", doas_est)
     print("Estimated DOAs: ", doas_est)
@@ -430,7 +442,6 @@ if __name__ == "__main__":
                         mc_seed=mc_seed,
                         exp_name=exp_name,
                     )
-                    
                     results = {
                         "doas_est_idx_s1": doas_est_idx[0],
                         "doas_ref_idx_s1": doas_ref_idx[0],
