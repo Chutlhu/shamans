@@ -7,27 +7,27 @@ Created: 2025-02-19
 Modified: 2025-02-19
 """
 
-
 import json
 import argparse
 import datetime
 from pathlib import Path
 import pickle
+from tqdm import tqdm
 
 from localizers import methods as ang_spect_methods
 
+import pandas as pd
 import numpy as np
-import librosa
-import soundfile as sf
-
-import seaborn as sns
-import matplotlib.pyplot as plt
-
 from einops import rearrange
 import itertools
 import scipy.signal
 
+import librosa
+import soundfile as sf
 import pyroomacoustics as pra
+
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 from pprint import pprint
 
@@ -64,12 +64,11 @@ parser = argparse.ArgumentParser(description='Sound Source Localization with NSt
 parser.add_argument('--sv-method', type=str, default='nf-subfreq', help='Steering vector interpolation method', choices=['nf', 'nf-gw' 'nn', 'sp', 'pinn', 'gp-steerer'])
 parser.add_argument('--nObs', type=int, default=8, help='Number of observations used to fit the sv model', choices=[8, 16, 32, 64, 128])
 parser.add_argument('--seed', type=int, default=13, help='Random seed used for training the interpolation methods', choices=[13, 42, 666])
-parser.add_argument('--sv-normalization', action='store_true', help='Normalize the steering vectors')
 parser.add_argument('--exp-id', type=int, default=None, help='Name of the experiment')
 
-def make_data(src_doas_idx, sound_duration, SNR, noise_type='white', add_reverberation=False):
+def make_data(src_doas_idx, sound_duration, SNR, noise_type='white', add_reverberation=False, mc_seed=1):
     
-    file_name_data = f"doas-{src_doas_idx}_snr-{snr}_noise-{noise_type}_reverb-{add_reverberation}"
+    file_name_data = f"doas-{src_doas_idx}_snr-{snr}_noise-{noise_type}_reverb-{add_reverberation}_mc-{mc_seed}"
     
     # # Load the ground truth data
     path_to_model = path_to_resolved_models / f"ref_nObs-8_seed-13.pkl"
@@ -97,13 +96,16 @@ def make_data(src_doas_idx, sound_duration, SNR, noise_type='white', add_reverbe
     n_sources = len(src_doas_idx)
     
     # load speech signal
-    s1, fs = librosa.load(path_to_speech_data / 'DR2_MDWD0_SI1260_SI557_SX90_8s.wav', sr=fs, duration=sound_duration, mono=True, offset=0.5)
-    s2, fs = librosa.load(path_to_speech_data / 'DR1_MWAR0_SI2305_SI1045_7s.wav', sr=fs, duration=sound_duration, mono=True, offset=0.5)
-    s3, fs = librosa.load(path_to_speech_data / 'DR5_FSKP0_SI1728_SI468_SX288_8s.wav', sr=fs, duration=sound_duration, mono=True, offset=0.5)
-    s1 = s1 / np.std(s1)
-    s2 = s2 / np.std(s2)
-    s3 = s3 / np.std(s3)
-    src_signals = np.array([s1, s2, s3])[:n_sources]
+    # get the list of all the speech files
+    speech_files = list(path_to_speech_data.glob("*.wav"))
+    # randomly select n_sources speech files
+    speech_files = np.random.choice(speech_files, n_sources)
+    src_signals = []
+    for i, speech_file in enumerate(speech_files):
+        s, fs = librosa.load(speech_file, sr=fs, duration=sound_duration, mono=True, offset=0.5)
+        s = s / np.std(s)
+        src_signals.append(s)
+    src_signals = np.array(src_signals)
     print("src_signals shape: ", src_signals.shape)
     # check the the selected source are active
     assert np.all(np.std(src_signals, axis=-1) > 0), "Source signals are empty"
@@ -135,7 +137,7 @@ def make_data(src_doas_idx, sound_duration, SNR, noise_type='white', add_reverbe
         if i < n_sources:
             ax.plot(time_src, src_signals[i], label=f's{i+1}')
         else:
-            ax.plot(time_mix, x[0], label='mixture')
+            ax.plot(time_mix, mixture[0], label='mixture')
         ax.legend()
     plt.savefig(figure_dir / f'{file_name_data}_mixture.png')
     plt.close()
@@ -310,10 +312,14 @@ def compute_metrics(doas_est, doas_ref):
 
 
 def process_experiment(
-    src_doas_idx, sound_duration, snr, noise_type, add_reverberation, loc_method, freq_range, sv_method, seed, nObs, sv_normalization, exp_name=None
+    src_doas_idx, sound_duration, snr, noise_type, add_reverberation, loc_method, freq_range, sv_method, seed, nObs, sv_normalization, mc_seed=1, exp_name=None
     
     ):
-    mixture, doas_ref = make_data(src_doas_idx, sound_duration, snr, noise_type, add_reverberation)
+    
+    # set seed for reproducibility
+    np.random.seed(mc_seed)
+    
+    mixture, doas_ref = make_data(src_doas_idx, sound_duration, snr, noise_type, add_reverberation, mc_seed=mc_seed)
     n_sources = len(src_doas_idx)
     
     doas_est, doas_est_idx, ang_spec = localize(mixture, loc_method, freq_range, n_sources, sv_method, seed, nObs, sv_normalization)
@@ -351,21 +357,21 @@ if __name__ == "__main__":
         - one source at DOAs every 10 degree from -90 to 90
         - SNR from -30 to 15 dB
         """
-        
-        import pandas as pd
-        
+                
         # define the hyperparameters space for the data
-        target_doa = np.concatenate([np.arange(0, 15, 1), np.arange(60-15, 60, 1)]).tolist()
+        target_doa = np.concatenate([np.arange(0, 15, 2), np.arange(60-15, 60, 2)]).tolist()
         print("Target DOAs: ", target_doa)
         snr = np.arange(-30, 10, 5).tolist()
         print("SNRs: ", snr)
         noise_type = ['white']
-        sound_duration = [0.5, 1.]
+        sound_duration = [1.]
         add_reverberation = [False]
         sv_normalization = True
         
+        monte_carlo_run_per_setting = np.arange(1).tolist()
+        
         # compile the list of mixtures
-        data_settings = list(itertools.product(target_doa, sound_duration, snr, noise_type, add_reverberation))
+        data_settings = list(itertools.product(target_doa, sound_duration, snr, noise_type, add_reverberation, monte_carlo_run_per_setting))
                 
         # Steering vector models
         # compile the list of models combining the method with nObs and seed
@@ -388,9 +394,9 @@ if __name__ == "__main__":
         
         counter_exp = 0
         
-        for setting in data_settings:
+        for setting in tqdm(data_settings):
             
-            target_doa, sound_duration, snr, noise_type, add_reverberation = setting
+            target_doa, sound_duration, snr, noise_type, add_reverberation, mc_seed = setting
             src_doas_idx = [target_doa]
             
             now = datetime.datetime.now()
@@ -406,11 +412,11 @@ if __name__ == "__main__":
                     sv_method, nObs, seed = sv_model_name
                 
                     print("### Running experiment ###")
-                    print("scene settings: ", src_doas_idx, sound_duration, snr, noise_type, add_reverberation)
+                    print("scene settings: ", src_doas_idx, sound_duration, snr, noise_type, add_reverberation, mc_seed)
                     print("model settings: ", sv_method, nObs, seed, sv_normalization)
                     print("loc_method: ", loc_method)
                     
-                    exp_name =  f"exp-{experiment_case}_doas-{src_doas_idx}_duration-{sound_duration}-snr-{snr}_noise-{noise_type}_reverb-{add_reverberation}_loc-{loc_method}_freq-{freq_range}_sv-{sv_method}_nObs-{nObs}_seed-{seed}_norm-{sv_normalization}"
+                    exp_name =  f"exp-{experiment_case}_doas-{src_doas_idx}_duration-{sound_duration}-snr-{snr}_noise-{noise_type}_reverb-{add_reverberation}_loc-{loc_method}_freq-{freq_range}_sv-{sv_method}_nObs-{nObs}_seed-{seed}_norm-{sv_normalization}_mc-{mc_seed}"
                     
                     # check if the experiment has already been run by checking the exp_name in the results_df
                     if len(results_df) > 0 and results_df.query(f"exp_name == '{exp_name}'").shape[0] > 0:
@@ -421,6 +427,7 @@ if __name__ == "__main__":
                         src_doas_idx, sound_duration, snr, noise_type, add_reverberation,
                         loc_method, freq_range, 
                         sv_method, seed, nObs, sv_normalization,
+                        mc_seed=mc_seed,
                         exp_name=exp_name,
                     )
                     
@@ -440,6 +447,7 @@ if __name__ == "__main__":
                         snr=snr,
                         noise_type=noise_type,
                         add_reverberation=add_reverberation,
+                        mc_seed=mc_seed,
                     )
                     model_parameters = dict(
                         loc_method=loc_method,
@@ -491,8 +499,6 @@ if __name__ == "__main__":
         - SNR is set to 0
         """
         
-        import pandas as pd
-        
         # define the hyperparameters space for the data
         target_doa = np.concatenate([np.arange(0, 15, 1), np.arange(60-15, 60, 1)]).tolist()
         sep_angle = np.arange(1, 15, 1).tolist()
@@ -503,10 +509,12 @@ if __name__ == "__main__":
         noise_type = ['white']
         sound_duration = [1.]
         add_reverberation = [False]
+        monte_carlo_run_per_setting = np.arange(1).tolist()
+        
         sv_normalization = True
         
         # compile the list of mixtures
-        data_settings = list(itertools.product(target_doa, sep_angle, sound_duration, snr, noise_type, add_reverberation))
+        data_settings = list(itertools.product(target_doa, sep_angle, sound_duration, snr, noise_type, add_reverberation, monte_carlo_run_per_setting))
                 
         # Steering vector models
         # compile the list of models combining the method with nObs and seed
@@ -531,7 +539,7 @@ if __name__ == "__main__":
         
         for setting in data_settings:
             
-            target_doa, sep_angle, sound_duration, snr, noise_type, add_reverberation = setting
+            target_doa, sep_angle, sound_duration, snr, noise_type, add_reverberation, mc_seed = setting
             src_doas_idx = [target_doa, target_doa + sep_angle]
             
             now = datetime.datetime.now()
@@ -547,11 +555,11 @@ if __name__ == "__main__":
                     sv_method, nObs, seed = sv_model_name
                 
                     print("### Running experiment ###")
-                    print("scene settings: ", src_doas_idx, sound_duration, snr, noise_type, add_reverberation)
+                    print("scene settings: ", src_doas_idx, sound_duration, snr, noise_type, add_reverberation, mc_seed)
                     print("model settings: ", sv_method, nObs, seed, sv_normalization)
                     print("loc_method: ", loc_method)
                     
-                    exp_name =  f"exp-{experiment_case}_doas-{src_doas_idx}_duration-{sound_duration}-snr-{snr}_noise-{noise_type}_reverb-{add_reverberation}_loc-{loc_method}_freq-{freq_range}_sv-{sv_method}_nObs-{nObs}_seed-{seed}_norm-{sv_normalization}"
+                    exp_name =  f"exp-{experiment_case}_doas-{src_doas_idx}_duration-{sound_duration}-snr-{snr}_noise-{noise_type}_reverb-{add_reverberation}_loc-{loc_method}_freq-{freq_range}_sv-{sv_method}_nObs-{nObs}_seed-{seed}_norm-{sv_normalization}_mc-{mc_seed}"
                     
                     # check if the experiment has already been run by checking the exp_name in the results_df
                     if len(results_df) > 0 and results_df.query(f"exp_name == '{exp_name}'").shape[0] > 0:
@@ -562,6 +570,7 @@ if __name__ == "__main__":
                         src_doas_idx, sound_duration, snr, noise_type, add_reverberation,
                         loc_method, freq_range, 
                         sv_method, seed, nObs, sv_normalization,
+                        mc_seed=mc_seed,
                         exp_name=exp_name,
                     )
                     

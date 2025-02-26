@@ -122,9 +122,6 @@ def alpha_stable(X, svects, alpha=1.2, beta=0.0):
     nFreq, nDoas, nChan = a.shape
     X = X / np.abs(X) # PHAT normalization
     
-    # filter out some frequencies
-    
-    
     phi = LevyExp(a, X, alpha = alpha)
     ind_func = - np.log(phi) # [nFreq x nDoas]
     ind_func = rearrange(ind_func, 'f j -> (f j) 1')
