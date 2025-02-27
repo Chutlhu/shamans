@@ -101,7 +101,6 @@ def music(X, svects, n_sources=1):
 ############################################
 
 def LevyExp(svect, X, alpha=1.2):
-    print(svect.shape, X.shape)
     Fs, Js, Is = svect.shape
     Ix, Fx, Tx = X.shape
     assert Is == Ix, "Mismatch in the number of microphones"
@@ -116,8 +115,9 @@ def compute_beta_div(SM, ind_fun, Psi, beta):
     Gmin = Psi.T @ (X_**(beta - 2) * ind_fun)
     return (Gplus - Gmin).sum()
 
-def alpha_stable(X, svects, alpha=1.2, beta=0.0):
+def alpha_stable(X, svects, alpha=1.2, beta=0.0, eps=1e-3, n_iter=1000):
 
+    nChan, nFreq, nTime = X.shape
     a = svects
     nFreq, nDoas, nChan = a.shape
     X = X / np.abs(X) # PHAT normalization
@@ -128,9 +128,6 @@ def alpha_stable(X, svects, alpha=1.2, beta=0.0):
     Psi = np.abs(np.einsum('fji,fJi->fjJ', a.conj(), a))**alpha # [nFreq x nDoas x nDoas]
     Psi = rearrange(Psi, 'f j J -> (f j) J')
     
-    n_iter = 1000
-    eps = 1e-3
-    beta = 0.0
     SM = np.ones([nDoas, 1])
     
     for n in range(n_iter):

@@ -21,6 +21,7 @@ import numpy as np
 from einops import rearrange
 import itertools
 import scipy.signal
+from scipy.stats import levy_stable
 
 import librosa
 import soundfile as sf
@@ -30,6 +31,19 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 from pprint import pprint
+import logging
+
+# # Set up logging
+# logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.WARNING)
+logger = logging.getLogger(__name__)
+
+def set_logging_level(level):
+    logger.setLevel(level)
+
+
+do_plot = True
+do_output_wav = False
 
 expertiment_folder = Path("./")
 path_to_speech_data = expertiment_folder / "data/SmallTimit"
@@ -56,13 +70,18 @@ eusipco_names_to_exp_name = {
 
 
 ang_spect_methods = {
-    'alpha_0.8': lambda X, svect : alpha_stable(X, svect, alpha=0.8),
-    'alpha_1.2': lambda X, svect : alpha_stable(X, svect, alpha=1.2),
-    'alpha_1.8': lambda X, svect : alpha_stable(X, svect, alpha=1.8),
+#     'alpha-2.0_beta_2_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=2.0, beta=2.0, eps=1e-3, n_iter=500),
+#     'alpha-2.0_beta_2_eps-1E-3_iter-1000': lambda X, svect : alpha_stable(X, svect, alpha=2.0, beta=2.0, eps=1e-3, n_iter=1000),
+#     'alpha-2.0_beta_2_eps-1E-5_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=2.0, beta=2.0, eps=1e-5, n_iter=500),
+#     'alpha-2.0_beta_2_eps-1E-1_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=2.0, beta=2.0, eps=1e-1, n_iter=500),
+#     'alpha-2.0_beta_2_eps-1E-1_iter-1000': lambda X, svect : alpha_stable(X, svect, alpha=2.0, beta=2.0, eps=1e-1, n_iter=1000),
+    'alpha-1.2_beta_2_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=1.2, beta=2.0, eps=1e-3, n_iter=500),
+    # 'alpha-1.2_beta_1_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=1.2, beta=1.0, eps=1e-3, n_iter=500),
+    # 'alpha-1.2_beta_0_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=1.2, beta=0.0, eps=1e-3, n_iter=500),
     'music': music,
     'srp_phat': srp_phat,
-    'wishart': wishart,
-    'inv_wishart': inv_wishart,
+    # 'wishart': wishart,
+    # 'inv_wishart': inv_wishart,
 }
 ang_spect_methods_choices = ang_spect_methods.keys()
 sv_methods_choices = eusipco_names_to_exp_name.keys()
@@ -117,7 +136,7 @@ def make_data(src_doas_idx, sound_duration, SNR, noise_type='white', add_reverbe
         s = s / np.std(s)
         src_signals.append(s)
     src_signals = np.array(src_signals)
-    print("src_signals shape: ", src_signals.shape)
+    logger.debug("src_signals shape: ", src_signals.shape)
     # check the the selected source are active
     assert np.all(np.std(src_signals, axis=-1) > 0), "Source signals are empty"
     
@@ -130,34 +149,38 @@ def make_data(src_doas_idx, sound_duration, SNR, noise_type='white', add_reverbe
             xi.append(np.convolve(svect_ref_time[:,src_doas_idx[j],i], s, mode='full'))
         x.append(np.sum(np.array(xi), axis=0))
     mixture = np.array(x) # [nChan x nSamples]
-    print("Mixture shape: ", mixture.shape)
+    logger.debug("Mixture shape: ", mixture.shape)
 
     # add noise
     if noise_type == 'white':
         noise = np.random.randn(*mixture.shape)
+    elif noise_type == 'alpha_stable':
+        noise = levy_stable.rvs(alpha=1.2, beta=0, loc=1, size=mixture.shape)
     else:
         raise ValueError(f"Unknown noise type {noise_type}")
     noise = noise / np.linalg.norm(noise) * np.linalg.norm(mixture) / 10**(SNR/20)
     mixture = mixture + noise # [nChan x nSamples]
-    print("Mixture shape: ", mixture.shape)
+    logger.debug("Mixture shape: ", mixture.shape)
 
     time_src = np.arange(src_signals.shape[1]) / fs
     time_mix = np.arange(mixture.shape[1]) / fs 
-    fig, axarr = plt.subplots(n_sources+1, 1, figsize=(10, 5), sharex=True)
-    for i, ax in enumerate(axarr):
-        if i < n_sources:
-            ax.plot(time_src, src_signals[i], label=f's{i+1}')
-        else:
-            ax.plot(time_mix, mixture[0], label='mixture')
-        ax.legend()
-    plt.savefig(figure_dir / f'{file_name_data}_mixture.png')
-    plt.close()
+    if do_plot:
+        fig, axarr = plt.subplots(n_sources+1, 1, figsize=(10, 5), sharex=True)
+        for i, ax in enumerate(axarr):
+            if i < n_sources:
+                ax.plot(time_src, src_signals[i], label=f's{i+1}')
+            else:
+                ax.plot(time_mix, mixture[0], label='mixture')
+            ax.legend()
+        plt.savefig(figure_dir / f'{file_name_data}_mixture.png')
+        plt.close()
     
     doas_ref = np.array([doa_space[src_doas_idx[j]] for j in range(n_sources)])
     
     # save mixture as wave with doa in the file name
-    mixture_to_save = mixture / np.max(np.abs(mixture))
-    sf.write(output_dir / f'{file_name_data}.wav', mixture_to_save.T, fs)
+    if do_output_wav:
+        mixture_to_save = mixture / np.max(np.abs(mixture))
+        sf.write(output_dir / f'{file_name_data}.wav', mixture_to_save.T, fs)
     
     return mixture, doas_ref
     
@@ -271,7 +294,7 @@ def localize(
         # it means that find peaks f
         # just take the the peak with a simple argmax
         doas_est_idx = np.argsort(-ang_spec_poll)[:n_sources]
-    print("Estimated DOAs: ", doas_est_idx)
+    logger.debug("Estimated DOAs: ", doas_est_idx)
     doas_est = [doa_space[doas_est_idx[i]] for i in range(n_sources)]
     return doas_est, doas_est_idx, ang_spec
 
@@ -314,7 +337,7 @@ def compute_metrics(doas_est, doas_ref):
         min_error = np.inf
         for perm in itertools.permutations(range(nDoas)):
             error = compute_angle_between(doas_est[list(perm)], doas_ref)
-            # print("Permutation: ", perm, "Error: ", error.sum())
+            logger.debug("Permutation: ", perm, "Error: ", error.sum())
             if error.sum() < min_error:
                 min_error = error.sum()
                 best_error = error
@@ -336,16 +359,17 @@ def process_experiment(
     
     doas_est, doas_est_idx, ang_spec = localize(mixture, loc_method, freq_range, n_sources, sv_method, seed, nObs, sv_normalization)
     
-    plot_ang_spec(ang_spec, doas_est_idx, title='Estimated Ang Spec')
-    plt.savefig(figure_dir / f'{exp_name}_ang_spec_est.png')
-    plt.close()
+    if do_plot:
+        plot_ang_spec(ang_spec, doas_est_idx, title='Estimated Ang Spec')
+        plt.savefig(figure_dir / f'{exp_name}_ang_spec_est.png')
+        plt.close()
     
-    print("Ground truth DOAs: ", doas_ref)
+    logger.debug("Ground truth DOAs: ", doas_ref)
     error, doas_est, perm = compute_metrics(doas_est, doas_ref)
     doas_est_idx = [doas_est_idx[i] for i in perm]
-    print("Best permutation: ", doas_est)
-    print("Estimated DOAs: ", doas_est)
-    print("Error: ", error)
+    logger.debug("Best permutation: ", doas_est)
+    logger.debug("Estimated DOAs: ", doas_est)
+    logger.debug("Error: ", error)
     
     # if not list, make it a list
     doas_ref = np.array(doas_ref).tolist()
@@ -362,7 +386,148 @@ if __name__ == "__main__":
     
     experiment_case = args.exp_id
     
-    if experiment_case == 1:
+    # Experiment 0 - Tuning alpha-stable
+    if experiment_case == 0:
+        
+        """ 
+        This expermiment check the rebustness of the localizatiion against the SNR
+        - one source at DOAs every 12 degree from -90 to 90
+        - SNR from -40 to 10 dB
+        """
+                
+        # define the hyperparameters space for the data
+        target_doa = np.concatenate([np.arange(0, 15, 2), np.arange(60-15, 60, 2)]).tolist()
+        logger.debug("Target DOAs: ", target_doa)
+        snr = np.arange(-10, 20, 5).tolist()
+        logger.debug("SNRs: ", snr)
+        noise_type = ['alpha_stable', 'white']
+        sound_duration = [1.]
+        add_reverberation = [False]
+        sv_normalization = True
+        
+        monte_carlo_run_per_setting = np.arange(3).tolist()
+        
+        # compile the list of mixtures
+        data_settings = list(itertools.product(target_doa, sound_duration, snr, noise_type, add_reverberation, monte_carlo_run_per_setting))
+                
+        # Steering vector models
+        # compile the list of models combining the method with nObs and seed
+        sv_model_choices = [['ref', 8, 13], ['alg', 8, 13]]
+        # sv_model_choices += list(itertools.product(sv_methods_choices, sv_nObs_choice, sv_seed_choice))
+        # sv_model_choices += list(itertools.product(['gp-steerer'], [32], [666]))
+        
+        # Localization method hparams
+        min_freq = 200
+        max_freq = 4000
+        freq_range = [min_freq, max_freq]
+        
+        results_df = pd.DataFrame()
+        results_list = []
+        
+        # load the results dataframe if it exists
+        csv_filename = f"experiment_results_exp-{experiment_case}.csv"
+        if (results_dir / csv_filename).exists():
+            results_df = pd.read_csv(results_dir / csv_filename)
+        
+        counter_exp = 0
+        
+        for setting in tqdm(data_settings):
+            
+            target_doa, sound_duration, snr, noise_type, add_reverberation, mc_seed = setting
+            src_doas_idx = [target_doa]
+            
+            now = datetime.datetime.now()
+            date_str = datetime.datetime.strftime(now, "%Y%m%d-%H%M%S")
+            
+            for loc_method in ang_spect_methods_choices:
+                
+                results = dict()
+                
+                # run for all the other steering vectors
+                for sv_model_name in sv_model_choices:
+                    
+                    sv_method, nObs, seed = sv_model_name
+                
+                    logger.debug("### Running experiment ###")
+                    logger.debug("scene settings: ", src_doas_idx, sound_duration, snr, noise_type, add_reverberation, mc_seed)
+                    logger.debug("model settings: ", sv_method, nObs, seed, sv_normalization)
+                    logger.debug("loc_method: ", loc_method)
+                    
+                    exp_name =  f"exp-{experiment_case}_doas-{src_doas_idx}_duration-{sound_duration}-snr-{snr}_noise-{noise_type}_reverb-{add_reverberation}_loc-{loc_method}_freq-{freq_range}_sv-{sv_method}_nObs-{nObs}_seed-{seed}_norm-{sv_normalization}_mc-{mc_seed}"
+                    
+                    # check if the experiment has already been run by checking the exp_name in the results_df
+                    if len(results_df) > 0 and results_df.query(f"exp_name == '{exp_name}'").shape[0] > 0:
+                        logger.info(f"Experiment {exp_name} already run")
+                        continue
+                    
+                    doas_est, doas_est_idx, error, doas_ref, doas_ref_idx, ang_spec = process_experiment(
+                        src_doas_idx, sound_duration, snr, noise_type, add_reverberation,
+                        loc_method, freq_range, 
+                        sv_method, seed, nObs, sv_normalization,
+                        mc_seed=mc_seed,
+                        exp_name=exp_name,
+                    )
+                    results = {
+                        "doas_est_idx_s1": doas_est_idx[0],
+                        "doas_ref_idx_s1": doas_ref_idx[0],
+                        "doas_ref_s1_az": doas_ref[0][1],
+                        "doas_ref_s1_el": doas_ref[0][0],
+                        "doas_est_s1_az": doas_est[0][1],
+                        "doas_est_s1_el": doas_est[0][0],
+                        "error_s1": error[0],
+                    }
+
+                    scene_parameters = dict(
+                        target_doa=target_doa,
+                        duration=sound_duration,
+                        snr=snr,
+                        noise_type=noise_type,
+                        add_reverberation=add_reverberation,
+                        mc_seed=mc_seed,
+                    )
+                    model_parameters = dict(
+                        loc_method=loc_method,
+                        freq_min=freq_range[0],
+                        freq_max=freq_range[1],
+                        sv_method=sv_method,
+                        nObs=nObs,
+                        seed=seed,
+                        sv_normalization=sv_normalization,
+                    )
+                    record = dict(
+                        scene_parameters=scene_parameters,
+                        model_parameters=model_parameters,
+                        results=results,
+                        time=date_str,
+                        exp_name=exp_name,
+                    )
+
+                    # pprint(record)
+                    
+                    results_list.append(record)
+                    
+                    # Append the record to the dataframe
+                    # Flatten the nested dictionary
+                    flat_record = {
+                        **record['scene_parameters'],
+                        **record['model_parameters'],
+                        **record['results'],
+                        'time': record['time'],
+                        'exp_name': record['exp_name']
+                    }
+                    results_df = pd.concat([results_df, pd.DataFrame([flat_record])], ignore_index=True)
+
+                    counter_exp += 1
+                    
+                    if counter_exp % 5 == 0:
+                        # Save the dataframe to a CSV file
+                        results_df.to_csv(results_dir / csv_filename, index=False)
+                        # Save the list of dict to a json file
+                        with open(results_dir / csv_filename.replace("csv", "json"), 'w') as f:
+                            json.dump(results_list, f)
+    
+    # Experiment 1 - SNR robustness
+    elif experiment_case == 1:
         
         """ 
         This expermiment check the rebustness of the localizatiion against the SNR
@@ -477,7 +642,7 @@ if __name__ == "__main__":
                         exp_name=exp_name,
                     )
 
-                    pprint(record)
+                    # pprint(record)
                     
                     results_list.append(record)
                     
@@ -501,6 +666,7 @@ if __name__ == "__main__":
                         with open(results_dir / csv_filename.replace("csv", "json"), 'w') as f:
                             json.dump(results_list, f)
     
+    # Experiment 2 - Separation angle robustness
     elif experiment_case == 2:
         
         """ 
@@ -649,6 +815,150 @@ if __name__ == "__main__":
                         # Save the list of dict to a json file
                         with open(results_dir / csv_filename.replace("csv", "json"), 'w') as f:
                             json.dump(results_list, f)                
+    
+    # Experiment 3 - Multiple sources
+    elif experiment_case == 3:
+        
+        """ 
+        This expermiment check the rebustness of the localization of multiple sources
+        - draw n_sources sources at random DOAs
+        - SNR is set to 0
+        """
+        
+        # define the hyperparameters space for the data
+        nSrc = 5
+        n_sources_choice = np.arange(1,nSrc+1).tolist()
+        snr = [20]
+        noise_type = ['white']
+        sound_duration = [1.]
+        add_reverberation = [False]
+        monte_carlo_run_per_setting = np.arange(10).tolist() # <- how many times to run the same setting (sampling a source and a DOA)
+        
+        sv_normalization = True
+        
+        # compile the list of mixtures
+        data_settings = list(itertools.product(n_sources_choice, sound_duration, snr, noise_type, add_reverberation, monte_carlo_run_per_setting))
+                
+        # Steering vector models
+        # compile the list of models combining the method with nObs and seed
+        sv_model_choices = [['ref', 8, 13], ['alg', 8, 13]]
+        # sv_model_choices += list(itertools.product(sv_methods_choices, sv_nObs_choice, sv_seed_choice))
+        sv_model_choices += list(itertools.product(['gp-steerer'], sv_nObs_choice, sv_seed_choice))
+        
+        # Localization method hparams
+        min_freq = 200
+        max_freq = 4000
+        freq_range = [min_freq, max_freq]
+        
+        results_df = pd.DataFrame()
+        results_list = []
+        
+        # load the results dataframe if it exists
+        csv_filename = f"experiment_results_exp-{experiment_case}.csv"
+        if (results_dir / csv_filename).exists():
+            results_df = pd.read_csv(results_dir / csv_filename)
+        
+        counter_exp = 0
+        
+        doas_choices = np.arange(60)
+        
+        for setting in tqdm(data_settings):
+            
+            n_sources, sound_duration, snr, noise_type, add_reverberation, mc_seed = setting
+            
+            
+            # set the seed for reproducibility
+            np.random.seed(mc_seed)
+            
+            # draw n_sources sources at random DOAs
+            src_doas_idx = np.random.choice(doas_choices, n_sources)
+            
+            # create a frame_id using the sources DOAs
+            frame_id = f"nSrc-{n_sources}_srcIds-{src_doas_idx}-duration-{sound_duration}-snr-{snr}_noise-{noise_type}_reverb-{add_reverberation}_mc-{mc_seed}"
+            
+            now = datetime.datetime.now()
+            date_str = datetime.datetime.strftime(now, "%Y%m%d-%H%M%S")
+            
+            for loc_method in ang_spect_methods_choices:
+                
+                results = dict()
+                
+                # run for all the other steering vectors
+                for sv_model_name in sv_model_choices:
+                    
+                    sv_method, nObs, seed = sv_model_name
+                
+                    logger.info("### Running experiment ###")
+                    logger.info("scene settings: ", src_doas_idx, sound_duration, snr, noise_type, add_reverberation, mc_seed)
+                    logger.info("model settings: ", sv_method, nObs, seed, sv_normalization)
+                    logger.info("loc_method: ", loc_method)
+                    
+                    exp_name =  f"exp-{experiment_case}_doas-{src_doas_idx}_duration-{sound_duration}-snr-{snr}_noise-{noise_type}_reverb-{add_reverberation}_loc-{loc_method}_freq-{freq_range}_sv-{sv_method}_nObs-{nObs}_seed-{seed}_norm-{sv_normalization}_mc-{mc_seed}"
+                    
+                    # check if the experiment has already been run by checking the exp_name in the results_df
+                    if len(results_df) > 0 and results_df.query(f"exp_name == '{exp_name}'").shape[0] > 0:
+                        logger.warning(f"Experiment {exp_name} already run")
+                        continue
+                    
+                    doas_est, doas_est_idx, error, doas_ref, doas_ref_idx, ang_spec = process_experiment(
+                        src_doas_idx, sound_duration, snr, noise_type, add_reverberation,
+                        loc_method, freq_range, 
+                        sv_method, seed, nObs, sv_normalization,
+                        mc_seed=mc_seed,
+                        exp_name=exp_name,
+                    )
+                    
+                    results = {
+                        "exp_name": exp_name,
+                        "time": date_str,
+                        "example_id" : [f's{i}' for i in np.arange(n_sources)],
+                        "num_srcs": np.arange(n_sources).tolist(),
+                        "doas_est_idx": doas_est_idx,
+                        "doas_ref_idx": doas_ref_idx,
+                        "doas_ref_az": [doa[1] for doa in doas_ref],
+                        "doas_ref_el": [doa[0] for doa in doas_ref],
+                        "doas_est_az": [doa[1] for doa in doas_est],
+                        "doas_est_el": [doa[0] for doa in doas_est],
+                        "errors": error,                        
+                    }
+                    df_results = pd.DataFrame(results)
+            
+                    scene_parameters = {
+                        "example_id" : [f's{i}' for i in np.arange(n_sources)],
+                        "target_doa" : doas_ref,
+                        "frame_id" : [frame_id] * n_sources,
+                        "n_sources" : [n_sources] * n_sources,
+                        "duration" : [sound_duration] * n_sources,
+                        "snr" : [snr] * n_sources,
+                        "noise_type" : [noise_type] * n_sources,
+                        "add_reverberation" : [add_reverberation] * n_sources,
+                        "mc_seed" : [mc_seed] * n_sources,
+                    }
+                    df_scene = pd.DataFrame(scene_parameters)
+                    df_tmp = pd.merge(df_results, df_scene, on='example_id')
+                    method_id = [f"{loc_method}_freqs-{freq_range}_{sv_method}_nObs-{nObs}_seed-{seed}_norm-{sv_normalization}"]
+                    model_parameters = {
+                        "example_id" : [f's{i}' for i in np.arange(n_sources)],
+                        "method_id" : [method_id] * n_sources,
+                        "loc_method": [loc_method] * n_sources,
+                        "freq_min": [freq_range[0]] * n_sources,
+                        "freq_max": [freq_range[1]] * n_sources,
+                        "sv_method": [sv_method] * n_sources,
+                        "nObs": [nObs] * n_sources,
+                        "seed": [seed] * n_sources,
+                        "sv_normalization": [sv_normalization] * n_sources,
+                    }
+                    df_model = pd.DataFrame(model_parameters)
+                    df_results_ = pd.merge(df_tmp, df_model, on='example_id')
+                    
+                    results_df = pd.concat([results_df, df_results_], ignore_index=True)
+
+                    counter_exp += 1
+                    
+                    if counter_exp % 20 == 0:
+                        # Save the dataframe to a CSV file
+                        results_df.to_csv(results_dir / csv_filename, index=False)
+    
     else:
         
         src_doas = [5, 40]
