@@ -39,6 +39,7 @@ def srp(X, svects):
     ang_spec = np.real(y)
     return ang_spec
 
+
 def srp_phat(X, svects, n_sources=None):
     Fs, Js, Is = svects.shape
     Ix, Fx, Tx = X.shape
@@ -50,8 +51,9 @@ def srp_phat(X, svects, n_sources=None):
     X = X / np.abs(X)
     SCM = np.einsum('ift,Ift->fiI', X, np.conj(X)) / Tx
     SCM = SCM / np.trace(SCM, axis1=1, axis2=2)[:,None,None]
-    ang_spec = np.real(np.einsum('fji,fiI,fjI->jf', a.conj(), SCM, a)) / Tx
+    ang_spec = np.real(np.einsum('fji,fiI,fjI->jf', a.conj(), SCM, a))
     return ang_spec
+
 
 def inv_wishart(X, svects, n_sources=1):
     Fs, Js, Is = svects.shape
@@ -70,6 +72,7 @@ def inv_wishart(X, svects, n_sources=1):
     ang_spec = 1 / np.einsum('fjiI,fiI->jf', Psi, invSCM).real
     return ang_spec
 
+
 def wishart(X, svects, n_sources=None):
     Fs, Js, Is = svects.shape
     Ix, Fx, Tx = X.shape
@@ -84,6 +87,7 @@ def wishart(X, svects, n_sources=None):
         SCM = np.einsum('fik,fjk->fij', eigve_s, eigve_s.conj())
     ang_spec = np.abs(np.einsum('fji,fiI,fjI->jf', a.conj(), SCM, a))
     return ang_spec
+
 
 def music(X, svects, n_sources=1):
     Fs, Js, Is = svects.shape

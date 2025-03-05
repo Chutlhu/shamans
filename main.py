@@ -32,6 +32,7 @@ import matplotlib.pyplot as plt
 
 from pprint import pprint
 import logging
+import parse
 
 # # Set up logging
 # logging.basicConfig(level=logging.INFO)
@@ -42,7 +43,7 @@ def set_logging_level(level):
     logger.setLevel(level)
 
 
-do_plot = True
+do_plot = False
 do_output_wav = False
 
 expertiment_folder = Path("./")
@@ -69,21 +70,25 @@ eusipco_names_to_exp_name = {
 }
 
 
-ang_spect_methods = {
-#     'alpha-2.0_beta_2_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=2.0, beta=2.0, eps=1e-3, n_iter=500),
-#     'alpha-2.0_beta_2_eps-1E-3_iter-1000': lambda X, svect : alpha_stable(X, svect, alpha=2.0, beta=2.0, eps=1e-3, n_iter=1000),
-#     'alpha-2.0_beta_2_eps-1E-5_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=2.0, beta=2.0, eps=1e-5, n_iter=500),
-#     'alpha-2.0_beta_2_eps-1E-1_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=2.0, beta=2.0, eps=1e-1, n_iter=500),
-#     'alpha-2.0_beta_2_eps-1E-1_iter-1000': lambda X, svect : alpha_stable(X, svect, alpha=2.0, beta=2.0, eps=1e-1, n_iter=1000),
-    'alpha-1.2_beta_2_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=1.2, beta=2.0, eps=1e-3, n_iter=500),
-    # 'alpha-1.2_beta_1_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=1.2, beta=1.0, eps=1e-3, n_iter=500),
-    # 'alpha-1.2_beta_0_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=1.2, beta=0.0, eps=1e-3, n_iter=500),
+ang_spec_methods = {
+    # 'alpha-2.0_beta-2_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=2.0, beta=2.0, eps=1e-3, n_iter=500),
+    # 'alpha-1.2_beta-2_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=1.2, beta=2.0, eps=1e-3, n_iter=500),
+    # 'alpha-0.8_beta-2_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=0.8, beta=2.0, eps=1e-3, n_iter=500),
+    # 'alpha-2.0_beta-1_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=2.0, beta=1.0, eps=1e-3, n_iter=500),
+    # 'alpha-1.2_beta-1_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=1.2, beta=1.0, eps=1e-3, n_iter=500),
+    # 'alpha-0.8_beta-1_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=0.8, beta=1.0, eps=1e-3, n_iter=500),
+    # 'alpha-2.0_beta-2_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=2.0, beta=2.0, eps=1e-5, n_iter=500),
+    # 'alpha-1.2_beta-2_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=1.2, beta=2.0, eps=1e-5, n_iter=500),
+    # 'alpha-0.8_beta-2_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=0.8, beta=2.0, eps=1e-5, n_iter=500),
+    # 'alpha-2.0_beta-1_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=2.0, beta=1.0, eps=1e-5, n_iter=500),
+    # 'alpha-1.2_beta-1_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=1.2, beta=1.0, eps=1e-5, n_iter=500),
+    # 'alpha-0.8_beta-1_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=0.8, beta=1.0, eps=1e-5, n_iter=500),
     'music': music,
     'srp_phat': srp_phat,
-    # 'wishart': wishart,
-    # 'inv_wishart': inv_wishart,
+    'wishart': wishart,
+    'inv_wishart': inv_wishart,
 }
-ang_spect_methods_choices = ang_spect_methods.keys()
+ang_spec_methods_choices = ang_spec_methods.keys()
 sv_methods_choices = eusipco_names_to_exp_name.keys()
 sv_nObs_choice = [8, 16, 32, 64, 128]
 sv_seed_choice = [13, 42, 666]
@@ -96,7 +101,9 @@ parser.add_argument('--seed', type=int, default=13, help='Random seed used for t
 parser.add_argument('--alpha', type=float, default=1.2, help='Alpha parameter for the alpha-stable distribution')
 parser.add_argument('--exp-id', type=int, default=None, help='Name of the experiment')
 
-def make_data(src_doas_idx, sound_duration, SNR, noise_type='white', add_reverberation=False, mc_seed=1):
+def make_data(src_doas_idx, source_type, sound_duration, SNR, noise_type='awgn', add_reverberation=False, mc_seed=1):
+    
+    n_sources = len(src_doas_idx)
     
     file_name_data = f"doas-{src_doas_idx}_snr-{snr}_noise-{noise_type}_reverb-{add_reverberation}_mc-{mc_seed}"
     
@@ -122,19 +129,36 @@ def make_data(src_doas_idx, sound_duration, SNR, noise_type='white', add_reverbe
     nFreq, nDoas, nChan = svect_ref.shape
     svect_ref_time = np.fft.irfft(svect_ref, nfft, axis=0)
     
+    # add reverberation
+    RT60 = add_reverberation
+    if RT60 > 0:
+        # generate spatial reverberation with pyroomacoustics
+
+        # convolve in the spatial domain
+        pass
+    
     # make mixtures
-    n_sources = len(src_doas_idx)
     
     # load speech signal
     # get the list of all the speech files
-    speech_files = list(path_to_speech_data.glob("*.wav"))
-    # randomly select n_sources speech files
-    speech_files = np.random.choice(speech_files, n_sources)
-    src_signals = []
-    for i, speech_file in enumerate(speech_files):
-        s, fs = librosa.load(speech_file, sr=fs, duration=sound_duration, mono=True, offset=0.5)
+    if source_type == "speech":
+        speech_files = list(path_to_speech_data.glob("*.wav"))
+        # randomly select n_sources speech files
+        speech_files = np.random.choice(speech_files, n_sources)
+        src_signals = []
+        for i, speech_file in enumerate(speech_files):
+            s, fs = librosa.load(speech_file, sr=fs, duration=sound_duration, mono=True, offset=0.5)
+            s = s / np.std(s)
+            src_signals.append(s)
+    elif "alpha" in source_type:
+        src_alpha = float(source_type.split("-")[0])
+        size = (int(fs * sound_duration),)
+        s = levy_stable.rvs(alpha=src_alpha, beta=0, loc=0, size=size)
         s = s / np.std(s)
-        src_signals.append(s)
+    elif source_type == "gauss":
+        size = (int(fs * sound_duration),)
+        s = np.random.randn(size)
+        s = s / np.std(s)
     src_signals = np.array(src_signals)
     logger.debug("src_signals shape: ", src_signals.shape)
     # check the the selected source are active
@@ -152,10 +176,11 @@ def make_data(src_doas_idx, sound_duration, SNR, noise_type='white', add_reverbe
     logger.debug("Mixture shape: ", mixture.shape)
 
     # add noise
-    if noise_type == 'white':
+    if noise_type == 'awgn':
         noise = np.random.randn(*mixture.shape)
-    elif noise_type == 'alpha_stable':
-        noise = levy_stable.rvs(alpha=1.2, beta=0, loc=1, size=mixture.shape)
+    elif "alpha" in noise_type:
+        noise_alpha = float(noise_type.split("-")[0])
+        noise = levy_stable.rvs(alpha=noise_alpha, beta=0, loc=0, size=mixture.shape)
     else:
         raise ValueError(f"Unknown noise type {noise_type}")
     noise = noise / np.linalg.norm(noise) * np.linalg.norm(mixture) / 10**(SNR/20)
@@ -192,7 +217,7 @@ def plot_ang_spec(S:np.array, doas_est_idx:np.array, doas_ref:np.array=None, tit
     """
     
     fig, axarr = plt.subplots(2,1, figsize=(6,3), sharex=True)
-    axarr[0].imshow(S.T, aspect='auto', origin='lower')
+    axarr[0].imshow(S.T, aspec='auto', origin='lower')
     if doas_ref is not None:
         for j in range(len(doas_ref)):
             axarr[0].axvline(doas_ref[j], color='r', linestyle='--', label=f'Doa GT {doas_ref[j]}')
@@ -283,7 +308,7 @@ def localize(
     assert nFreq == nFreq_, "Mismatch in the number of frequency bins"
     assert nChan == nChan_, "Mismatch in the number of channels"
     
-    ang_spec = ang_spect_methods[loc_method](X, svect) # [nDoas x nFreq]
+    ang_spec = ang_spec_methods[loc_method](X, svect) # [nDoas x nFreq]
     assert ang_spec.shape[0] == (nDoas), f"Expected first shape {(nDoas)}, got {ang_spec.shape[0]}"
     
     # estimate source location, get the n_sources highest peaks
@@ -296,19 +321,44 @@ def localize(
         doas_est_idx = np.argsort(-ang_spec_poll)[:n_sources]
     logger.debug("Estimated DOAs: ", doas_est_idx)
     doas_est = [doa_space[doas_est_idx[i]] for i in range(n_sources)]
-    return doas_est, doas_est_idx, ang_spec
+    ang_spec_freqs = freqs[idx_freq_range]
+    
+    return doas_est, doas_est_idx, ang_spec, ang_spec_freqs
+
+
+def convert_to_azimuth_inclination(doas_incl_az):
+    """
+    Convert DOAs from (elevation, azimuth) to (azimuth, inclination).
+    """
+    assert doas_incl_az.shape[-1] == 2, "Output should have shape (N, 2) for azimuth and inclination"
+    
+    assert np.max(np.abs(doas_incl_az[...,0])) <= np.pi,     "Eleveation should be in the range [0, pi]"
+    assert np.min(np.abs(doas_incl_az[...,0])) >= 0,         "Eleveation should be in the range [0, pi]"
+    assert np.max(np.abs(doas_incl_az[...,1])) <= 2 * np.pi, "Azimuth should be in the range [-2pi, 2pi]"
+    assert np.min(np.abs(doas_incl_az[...,1])) >= 0,         "Azimuth should be in the range [-2pi, 2pi]"
+    
+    doas_az_elev = np.stack([doas_incl_az[..., 1], np.pi / 2 - doas_incl_az[..., 0]], axis=-1)
+    
+    assert np.max(np.abs(doas_az_elev[...,0])) <= 2 * np.pi,  "Azimuth should be in the range [-2pi, 2pi]"
+    assert np.min(np.abs(doas_az_elev[...,0])) >= 0,          "Azimuth should be in the range [0, 2pi]"
+    assert np.max(np.abs(doas_az_elev[...,1])) <= np.pi / 2,  "Inclination should be in the range [-pi, pi]"
+    assert np.min(np.abs(doas_az_elev[...,1])) >= -np.pi / 2, "Inclination should be in the range [-pi, pi]"
+
+    # Test that the output is azimuth, inclination
+    assert doas_az_elev.shape == doas_incl_az.shape, "Output should have the same shape as the input"
+    
+    return doas_az_elev
 
 
 def compute_angle_between(doas_est, doas_ref):
     
     # change convention  
-    # 1. (elevation, azimuth) -> (azimuth, elevation)
-    doas_est = np.flip(doas_est.copy(), axis=1) 
-    doas_ref = np.flip(doas_ref.copy(), axis=1) 
-    # 2. (azimuth, inclination) -> (azimuth, elevation)
-    doas_est[:,1] -= np.pi / 2
-    doas_ref[:,1] -= np.pi / 2
-    
+    # 1. (elevation, azimuth) -> (azimuth, elevation)    
+
+    # Convert estimated and reference DOAs
+    doas_est = convert_to_azimuth_inclination(doas_est)
+    doas_ref = convert_to_azimuth_inclination(doas_ref)
+
     assert len(doas_est) == len(doas_ref), "Mismatch in the number of DOAs"
 
     # ref and x are now both in spherical angles (radian) and match in size
@@ -347,17 +397,19 @@ def compute_metrics(doas_est, doas_ref):
 
 
 def process_experiment(
-    src_doas_idx, sound_duration, snr, noise_type, add_reverberation, loc_method, freq_range, sv_method, seed, nObs, sv_normalization, mc_seed=1, exp_name=None
-    
+    src_doas_idx, source_type, sound_duration, 
+    snr, noise_type, add_reverberation, 
+    loc_method, freq_range, sv_method, seed, nObs, sv_normalization, 
+    mc_seed=1, exp_name=None
     ):
     
     # set seed for reproducibility
     np.random.seed(mc_seed)
     
-    mixture, doas_ref = make_data(src_doas_idx, sound_duration, snr, noise_type, add_reverberation, mc_seed=mc_seed)
+    mixture, doas_ref = make_data(src_doas_idx, source_type, sound_duration, snr, noise_type, add_reverberation, mc_seed=mc_seed)
     n_sources = len(src_doas_idx)
     
-    doas_est, doas_est_idx, ang_spec = localize(mixture, loc_method, freq_range, n_sources, sv_method, seed, nObs, sv_normalization)
+    doas_est, doas_est_idx, ang_spec, ang_spec_freqs = localize(mixture, loc_method, freq_range, n_sources, sv_method, seed, nObs, sv_normalization)
     
     if do_plot:
         plot_ang_spec(ang_spec, doas_est_idx, title='Estimated Ang Spec')
@@ -378,7 +430,7 @@ def process_experiment(
     doas_ref_idx = np.array(src_doas_idx).tolist()
     error = np.array(error).tolist()
     
-    return doas_est, doas_est_idx, error, doas_ref, doas_ref_idx, ang_spec
+    return doas_est, doas_est_idx, error, doas_ref, doas_ref_idx, ang_spec, ang_spec_freqs
 
 
 if __name__ == "__main__":
@@ -398,9 +450,10 @@ if __name__ == "__main__":
         # define the hyperparameters space for the data
         target_doa = np.concatenate([np.arange(0, 15, 2), np.arange(60-15, 60, 2)]).tolist()
         logger.debug("Target DOAs: ", target_doa)
+        source_type = ['speech']
         snr = np.arange(-10, 20, 5).tolist()
         logger.debug("SNRs: ", snr)
-        noise_type = ['alpha_stable', 'white']
+        noise_type = ['alpha_stable', 'awgn']
         sound_duration = [1.]
         add_reverberation = [False]
         sv_normalization = True
@@ -408,7 +461,7 @@ if __name__ == "__main__":
         monte_carlo_run_per_setting = np.arange(3).tolist()
         
         # compile the list of mixtures
-        data_settings = list(itertools.product(target_doa, sound_duration, snr, noise_type, add_reverberation, monte_carlo_run_per_setting))
+        data_settings = list(itertools.product(target_doa, source_type, sound_duration, snr, noise_type, add_reverberation, monte_carlo_run_per_setting))
                 
         # Steering vector models
         # compile the list of models combining the method with nObs and seed
@@ -433,13 +486,24 @@ if __name__ == "__main__":
         
         for setting in tqdm(data_settings):
             
-            target_doa, sound_duration, snr, noise_type, add_reverberation, mc_seed = setting
+            target_doa, source_type, sound_duration, snr, noise_type, add_reverberation, mc_seed = setting
             src_doas_idx = [target_doa]
             
             now = datetime.datetime.now()
             date_str = datetime.datetime.strftime(now, "%Y%m%d-%H%M%S")
             
-            for loc_method in ang_spect_methods_choices:
+            for loc_method in ang_spec_methods_choices:
+                
+                # decode loc_method name
+                if "alpha" in loc_method:
+                    format_string = 'alpha-{alpha:f}_beta-{beta:f}_eps-{eps:f}_iter-{niter:d}'
+                    parsed = parse.parse(format_string, loc_method)
+                    sm_alpha = parsed['alpha']
+                    sm_beta = parsed['beta']
+                    sm_eps = parsed['eps']
+                    sm_niter = parsed['niter']
+                else:
+                    sm_alpha = sm_beta = sm_eps = sm_niter = None
                 
                 results = dict()
                 
@@ -461,7 +525,7 @@ if __name__ == "__main__":
                         continue
                     
                     doas_est, doas_est_idx, error, doas_ref, doas_ref_idx, ang_spec = process_experiment(
-                        src_doas_idx, sound_duration, snr, noise_type, add_reverberation,
+                        src_doas_idx, source_type, sound_duration, snr, noise_type, add_reverberation,
                         loc_method, freq_range, 
                         sv_method, seed, nObs, sv_normalization,
                         mc_seed=mc_seed,
@@ -493,6 +557,10 @@ if __name__ == "__main__":
                         nObs=nObs,
                         seed=seed,
                         sv_normalization=sv_normalization,
+                        sm_alpha=sm_alpha,
+                        sm_beta=sm_beta,
+                        sm_eps=sm_eps,
+                        sm_niter=sm_niter,
                     )
                     record = dict(
                         scene_parameters=scene_parameters,
@@ -540,7 +608,7 @@ if __name__ == "__main__":
         print("Target DOAs: ", target_doa)
         snr = np.arange(-30, 10, 5).tolist()
         print("SNRs: ", snr)
-        noise_type = ['white']
+        noise_type = ['awgn']
         sound_duration = [1.]
         add_reverberation = [False]
         sv_normalization = True
@@ -579,7 +647,7 @@ if __name__ == "__main__":
             now = datetime.datetime.now()
             date_str = datetime.datetime.strftime(now, "%Y%m%d-%H%M%S")
             
-            for loc_method in ang_spect_methods_choices:
+            for loc_method in ang_spec_methods_choices:
                 
                 results = dict()
                 
@@ -683,7 +751,7 @@ if __name__ == "__main__":
         print("Separation angles: ", sep_angle)
         snr = [0]
         print("SNRs: ", snr)
-        noise_type = ['white']
+        noise_type = ['awgn']
         sound_duration = [1.]
         add_reverberation = [False]
         monte_carlo_run_per_setting = np.arange(1).tolist()
@@ -722,7 +790,7 @@ if __name__ == "__main__":
             now = datetime.datetime.now()
             date_str = datetime.datetime.strftime(now, "%Y%m%d-%H%M%S")
             
-            for loc_method in ang_spect_methods_choices:
+            for loc_method in ang_spec_methods_choices:
                 
                 results = dict()
                 
@@ -816,28 +884,34 @@ if __name__ == "__main__":
                         with open(results_dir / csv_filename.replace("csv", "json"), 'w') as f:
                             json.dump(results_list, f)                
     
-    # Experiment 3 - Multiple sources
+    # Experiment 3 / 4 - Multiple sources, SNR = 20, speech (exp 4 uses the ang spec with a thr. I can be done later)
     elif experiment_case == 3:
+        
+        figure_dir = figure_dir / f"exp-{experiment_case}"
+        figure_dir.mkdir(parents=True, exist_ok=True)
+        output_dir = output_dir / f"exp-{experiment_case}"
+        output_dir.mkdir(parents=True, exist_ok=True)
         
         """ 
         This expermiment check the rebustness of the localization of multiple sources
         - draw n_sources sources at random DOAs
-        - SNR is set to 0
+        - SNR is set to 20
         """
         
         # define the hyperparameters space for the data
-        nSrc = 5
-        n_sources_choice = np.arange(1,nSrc+1).tolist()
+        max_number_of_sources = 5
+        n_sources_choice = np.arange(1,max_number_of_sources+1).tolist()
+        source_type = ['speech']
         snr = [20]
-        noise_type = ['white']
-        sound_duration = [1.]
+        noise_type = ['awgn']
+        sound_duration = [0.5, 1.]
         add_reverberation = [False]
-        monte_carlo_run_per_setting = np.arange(10).tolist() # <- how many times to run the same setting (sampling a source and a DOA)
+        monte_carlo_run_per_setting = np.arange(15).tolist() # <- how many times to run the same setting (sampling a source and a DOA)
         
         sv_normalization = True
         
         # compile the list of mixtures
-        data_settings = list(itertools.product(n_sources_choice, sound_duration, snr, noise_type, add_reverberation, monte_carlo_run_per_setting))
+        data_settings = list(itertools.product(n_sources_choice, source_type, sound_duration, snr, noise_type, add_reverberation, monte_carlo_run_per_setting))
                 
         # Steering vector models
         # compile the list of models combining the method with nObs and seed
@@ -849,6 +923,168 @@ if __name__ == "__main__":
         min_freq = 200
         max_freq = 4000
         freq_range = [min_freq, max_freq]
+        # indeces of the DOA grid of the EASYCOM/SPEAR data, that is [0,6degree,360]
+        doa_grid = np.arange(0, 360, 6)
+        doa_grid_idx = np.arange(60)
+        
+        results_all_concat_df = pd.DataFrame()
+        ang_spec_all_concat_list = []
+        
+        # load the results dataframe if it exists
+        csv_filename = f"experiment_results_exp-{experiment_case}.csv"
+        if (results_dir / csv_filename).exists():
+            results_all_concat_df = pd.read_csv(results_dir / csv_filename)
+        
+        counter_exp = 0
+        
+        for n_sources, source_type, sound_duration, snr, noise_type, add_reverberation, mc_seed in tqdm(data_settings, desc="For scene settings"):
+            
+            # set the seed for reproducibility
+            np.random.seed(mc_seed)
+            
+            # draw n_sources sources at random DOAs
+            src_doas_idx = np.random.choice(doa_grid_idx, n_sources)
+            
+            # create a frame_id using the sources DOAs
+            frame_id = f"nSrc-{n_sources}_doas-{src_doas_idx}_type-{source_type}-duration-{sound_duration}-snr-{snr}_noise-{noise_type}_reverb-{add_reverberation}_mc-{mc_seed}"
+            
+            now = datetime.datetime.now()
+            date_str = datetime.datetime.strftime(now, "%Y%m%d-%H%M%S")
+            
+            for loc_method in tqdm(ang_spec_methods_choices):
+                
+                results = dict()
+                
+                # run for all the other steering vectors
+                for sv_method, nObs, seed in sv_model_choices:
+                    
+                    method_id = f"{loc_method}_freqs-{freq_range}_{sv_method}_nObs-{nObs}_seed-{seed}_norm-{sv_normalization}"
+                
+                    logger.info("### Running experiment ###")
+                    logger.info("scene settings: ", src_doas_idx, sound_duration, snr, noise_type, add_reverberation, mc_seed)
+                    logger.info("model settings: ", sv_method, nObs, seed, sv_normalization)
+                    logger.info("loc_method: ", loc_method)
+                    
+                    exp_name =  f"exp-{experiment_case}_{frame_id}_{method_id}"
+                                        
+                    # check if the experiment has already been run by checking the exp_name in the results_all_concat_df
+                    if len(results_all_concat_df) > 0 and results_all_concat_df.query(f"exp_name == '{exp_name}'").shape[0] > 0:
+                        logger.warning(f"Experiment {exp_name} already run")
+                        continue
+                    
+                    doas_est, doas_est_idx, error, doas_ref, doas_ref_idx, ang_spec, ang_spec_freqs = process_experiment(
+                        src_doas_idx, source_type, sound_duration, snr, noise_type, add_reverberation,
+                        loc_method, freq_range, 
+                        sv_method, seed, nObs, sv_normalization,
+                        mc_seed=mc_seed,
+                        exp_name=exp_name,
+                    )
+                    
+                    # Record the results
+                    results = {
+                        "exp_name": exp_name,
+                        "time": date_str,
+                        "record_id" : [f's{i}' for i in np.arange(n_sources)],
+                        "num_srcs" : n_sources,
+                        "src_ids": np.arange(n_sources).tolist(),
+                        "doas_est_idx": doas_est_idx,
+                        "doas_ref_idx": doas_ref_idx,
+                        "doas_ref_az": [doa[1] for doa in doas_ref],
+                        "doas_est_az": [doa[1] for doa in doas_est],
+                        "doas_ref_el": [doa[0] for doa in doas_ref],
+                        "doas_est_el": [doa[0] for doa in doas_est],
+                        "errors": error,                        
+                    }
+                    df_results_ = pd.DataFrame(results)
+            
+                    # Record the scene parameters
+                    scene_parameters = {
+                        "record_id" : [f's{i}' for i in np.arange(n_sources)],
+                        "frame_id" : [frame_id] * n_sources,
+                        "target_doa" : doas_ref,
+                        "n_sources" : [n_sources] * n_sources,
+                        "duration" : [sound_duration] * n_sources,
+                        "snr" : [snr] * n_sources,
+                        "noise_type" : [noise_type] * n_sources,
+                        "add_reverberation" : [add_reverberation] * n_sources,
+                        "mc_seed" : [mc_seed] * n_sources,
+                    }
+                    df_scene_ = pd.DataFrame(scene_parameters)
+                    df_results_scene_ = pd.merge(df_results_, df_scene_, on='record_id')
+                    
+                    # Record the model parameters
+                    model_parameters = {
+                        "record_id" : [f's{i}' for i in np.arange(n_sources)],
+                        "method_id" : [method_id] * n_sources,
+                        "loc_method": [loc_method] * n_sources,
+                        "freq_min": [freq_range[0]] * n_sources,
+                        "freq_max": [freq_range[1]] * n_sources,
+                        "sv_method": [sv_method] * n_sources,
+                        "nObs": [nObs] * n_sources,
+                        "seed": [seed] * n_sources,
+                        "sv_normalization": [sv_normalization] * n_sources,
+                    }
+                    df_model_ = pd.DataFrame(model_parameters)
+                    df_results_scene_model_ = pd.merge(df_results_scene_, df_model_, on='record_id')
+                    
+                    results_all_concat_df = pd.concat([results_all_concat_df, df_results_scene_model_], ignore_index=True)
+                    
+                    doa_freq_grid = np.stack(np.meshgrid(doa_grid, ang_spec_freqs, indexing='ij'), -1)
+                    ang_spec_dict = {
+                        "frame_id" : frame_id,
+                        "method_id" : method_id,
+                        "loc_method" : loc_method,
+                        "ang_spec_shape" : ang_spec.shape,
+                        "doa_grid" : doa_freq_grid[...,0],
+                        "freq_grid" : doa_freq_grid[...,1],
+                        "ang_spec" : ang_spec,
+                    }
+                    ang_spec_all_concat_list.append(ang_spec_dict)
+                    
+                    counter_exp += 1
+                    
+                    if counter_exp % 20 == 0:
+                        # Save the dataframe to a CSV file
+                        results_all_concat_df.to_csv(results_dir / csv_filename, index=False)
+                        # Save the list of dict to pickle
+                        with open(results_dir / csv_filename.replace(".csv", "_with_ang_specs.pkl"), 'wb') as f:
+                            pickle.dump(ang_spec_all_concat_list, f)
+    
+                       
+    # Experiment 5 - Multiple sources, SNR = 20, varying alpha with synthetic sources
+    elif experiment_case == 5:
+        
+        """ 
+        This expermiment check the rebustness of the localization of multiple sources with different distribution
+        """
+        
+        # define the hyperparameters space for the data
+        nSrc = 5
+        n_sources_choice = np.arange(1,nSrc+1).tolist()
+        source_type = ['speech', 'alpha-1.2', 'alpha-2.0', 'gauss']
+        snr = [20]
+        noise_type = ['awgn']
+        sound_duration = [1.]
+        add_reverberation = [False]
+        monte_carlo_run_per_setting = np.arange(15).tolist() # <- how many times to run the same setting (sampling a source and a DOA)
+        
+        sv_normalization = True
+        
+        # compile the list of mixtures
+        data_settings = list(itertools.product(n_sources_choice, source_type, sound_duration, snr, noise_type, add_reverberation, monte_carlo_run_per_setting))
+                
+        # Steering vector models
+        # compile the list of models combining the method with nObs and seed
+        sv_model_choices = [['ref', 8, 13], ['alg', 8, 13]]
+        # sv_model_choices += list(itertools.product(sv_methods_choices, sv_nObs_choice, sv_seed_choice))
+        sv_model_choices += list(itertools.product(['gp-steerer'], sv_nObs_choice, sv_seed_choice))
+        
+        # Localization method hparams
+        min_freq = 200
+        max_freq = 4000
+        freq_range = [min_freq, max_freq]
+        # indeces of the DOA grid of the EASYCOM/SPEAR data, that is [0,6degree,360]
+        doa_grid = np.arange(60) 
         
         results_df = pd.DataFrame()
         results_list = []
@@ -860,18 +1096,15 @@ if __name__ == "__main__":
         
         counter_exp = 0
         
-        doas_choices = np.arange(60)
-        
         for setting in tqdm(data_settings):
             
-            n_sources, sound_duration, snr, noise_type, add_reverberation, mc_seed = setting
-            
+            n_sources, source_type, sound_duration, snr, noise_type, add_reverberation, mc_seed = setting
             
             # set the seed for reproducibility
             np.random.seed(mc_seed)
             
             # draw n_sources sources at random DOAs
-            src_doas_idx = np.random.choice(doas_choices, n_sources)
+            src_doas_idx = np.random.choice(doa_grid, n_sources)
             
             # create a frame_id using the sources DOAs
             frame_id = f"nSrc-{n_sources}_srcIds-{src_doas_idx}-duration-{sound_duration}-snr-{snr}_noise-{noise_type}_reverb-{add_reverberation}_mc-{mc_seed}"
@@ -879,7 +1112,7 @@ if __name__ == "__main__":
             now = datetime.datetime.now()
             date_str = datetime.datetime.strftime(now, "%Y%m%d-%H%M%S")
             
-            for loc_method in ang_spect_methods_choices:
+            for loc_method in ang_spec_methods_choices:
                 
                 results = dict()
                 
@@ -901,7 +1134,7 @@ if __name__ == "__main__":
                         continue
                     
                     doas_est, doas_est_idx, error, doas_ref, doas_ref_idx, ang_spec = process_experiment(
-                        src_doas_idx, sound_duration, snr, noise_type, add_reverberation,
+                        src_doas_idx, source_type, sound_duration, snr, noise_type, add_reverberation,
                         loc_method, freq_range, 
                         sv_method, seed, nObs, sv_normalization,
                         mc_seed=mc_seed,
@@ -925,6 +1158,7 @@ if __name__ == "__main__":
             
                     scene_parameters = {
                         "example_id" : [f's{i}' for i in np.arange(n_sources)],
+                        "source_type" : [source_type] * n_sources,
                         "target_doa" : doas_ref,
                         "frame_id" : [frame_id] * n_sources,
                         "n_sources" : [n_sources] * n_sources,
@@ -962,9 +1196,10 @@ if __name__ == "__main__":
     else:
         
         src_doas = [5, 40]
+        source_type = 'speech'
         sound_duration = 0.5
         snr = -5
-        noise_type = 'white'
+        noise_type = 'awgn'
         add_reverberation = False
         
         loc_method = 'alpha_stable'
@@ -976,7 +1211,7 @@ if __name__ == "__main__":
 
         # Create a string for the file name
         process_experiment(
-            src_doas, sound_duration, snr, noise_type, add_reverberation,
+            src_doas, source_type, sound_duration, snr, noise_type, add_reverberation,
             loc_method,
             sv_method, seed, nObs, sv_normalization,
         )
