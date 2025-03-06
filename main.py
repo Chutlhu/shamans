@@ -48,7 +48,7 @@ do_output_wav = False
 
 expertiment_folder = Path("./")
 path_to_speech_data = expertiment_folder / "data/SmallTimit"
-path_to_resolved_models = expertiment_folder / "data/selected_models" 
+path_to_resolved_models = expertiment_folder / "data/models" 
 
 
 results_dir = expertiment_folder / "results/"
@@ -474,14 +474,14 @@ if __name__ == "__main__":
         # Localization method hparams
         min_freq = 200
         max_freq = 4000
-        ang_spec_methods = {
+        ang_spec_methods_ = {
             'alpha-1.2_beta-2_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=1.2, beta=2.0, eps=1e-5, n_iter=500),
             'music': music,
             'srp_phat': srp_phat,
             'wishart': wishart,
             'inv_wishart': inv_wishart,
         }
-
+        ang_spec_methods_choices = ang_spec_methods_.keys()
         freq_range = [min_freq, max_freq]
         # indeces of the DOA grid of the EASYCOM/SPEAR data, that is [0,6degree,360]
         doa_grid = np.arange(0, 360, 6)
