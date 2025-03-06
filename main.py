@@ -85,8 +85,8 @@ ang_spec_methods = {
     # 'alpha-0.8_beta-1_eps-1E-5_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=0.8, beta=1.0, eps=1e-5, n_iter=500),
     'music': music,
     'srp_phat': srp_phat,
-    # 'wishart': wishart,
-    # 'inv_wishart': inv_wishart,
+    'wishart': wishart,
+    'inv_wishart': inv_wishart,
 }
 ang_spec_methods_choices = ang_spec_methods.keys()
 sv_methods_choices = eusipco_names_to_exp_name.keys()
@@ -455,7 +455,7 @@ if __name__ == "__main__":
         # define the hyperparameters space for the data
         n_sources_choice = [1]
         source_type = ['speech']
-        snr = np.arange(-30, 11, 5).tolist()
+        snr = np.arange(-30, 21, 10).tolist()
         noise_type = ['awgn', 'alpha-1.2', 'alpha-0.8']
         sound_duration = [0.5]
         add_reverberation = [False]
