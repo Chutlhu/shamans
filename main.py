@@ -151,7 +151,7 @@ def make_data(src_doas_idx, source_type, sound_duration, SNR, noise_type='awgn',
             s = s / np.std(s)
             src_signals.append(s)
     elif "alpha" in source_type:
-        src_alpha = float(source_type.split("-")[0])
+        src_alpha = float(source_type.split("-")[1])
         size = (int(fs * sound_duration),)
         s = levy_stable.rvs(alpha=src_alpha, beta=0, loc=0, size=size)
         s = s / np.std(s)
@@ -179,7 +179,7 @@ def make_data(src_doas_idx, source_type, sound_duration, SNR, noise_type='awgn',
     if noise_type == 'awgn':
         noise = np.random.randn(*mixture.shape)
     elif "alpha" in noise_type:
-        noise_alpha = float(noise_type.split("-")[0])
+        noise_alpha = float(noise_type.split("-")[1])
         noise = levy_stable.rvs(alpha=noise_alpha, beta=0, loc=0, size=mixture.shape)
     else:
         raise ValueError(f"Unknown noise type {noise_type}")
