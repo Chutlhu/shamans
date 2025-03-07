@@ -122,7 +122,6 @@ def make_data(src_doas_idx, source_type, sound_duration, SNR, noise_type='awgn',
     RT60 = add_reverberation
     if RT60 > 0:
         # generate spatial reverberation with pyroomacoustics
-
         # convolve in the spatial domain
         pass
     
