@@ -70,26 +70,6 @@ eusipco_names_to_exp_name = {
 }
 
 
-ang_spec_methods = {
-    'alpha-2.0_beta-2_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=2.0, beta=2.0, eps=1e-3, n_iter=500),
-    'alpha-1.2_beta-2_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=1.2, beta=2.0, eps=1e-3, n_iter=500),
-    # 'alpha-0.8_beta-2_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=0.8, beta=2.0, eps=1e-3, n_iter=500),
-    # 'alpha-2.0_beta-1_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=2.0, beta=1.0, eps=1e-3, n_iter=500),
-    # 'alpha-1.2_beta-1_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=1.2, beta=1.0, eps=1e-3, n_iter=500),
-    # 'alpha-0.8_beta-1_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=0.8, beta=1.0, eps=1e-3, n_iter=500),
-    # 'alpha-2.0_beta-2_eps-1E-5_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=2.0, beta=2.0, eps=1e-5, n_iter=500),
-    # 'alpha-1.2_beta-2_eps-1E-5_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=1.2, beta=2.0, eps=1e-5, n_iter=500),
-    # 'alpha-0.8_beta-2_eps-1E-5_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=0.8, beta=2.0, eps=1e-5, n_iter=500),
-    # 'alpha-2.0_beta-1_eps-1E-5_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=2.0, beta=1.0, eps=1e-5, n_iter=500),
-    # 'alpha-1.2_beta-1_eps-1E-5_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=1.2, beta=1.0, eps=1e-5, n_iter=500),
-    # 'alpha-0.8_beta-1_eps-1E-5_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=0.8, beta=1.0, eps=1e-5, n_iter=500),
-    'music': music,
-    'srp_phat': srp_phat,
-    'wishart': wishart,
-    'inv_wishart': inv_wishart,
-}
-ang_spec_methods_choices = ang_spec_methods.keys()
-sv_methods_choices = eusipco_names_to_exp_name.keys()
 sv_nObs_choice = [8, 16, 32, 64, 128]
 sv_seed_choice = [13, 42, 666]
 
@@ -791,6 +771,13 @@ if __name__ == "__main__":
         sv_model_choices += list(itertools.product(['gp-steerer'], sv_nObs_choice, sv_seed_choice))
         
         # Localization method hparams
+        ang_spec_methods = {
+            'alpha-2.0_beta-2_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=2.0, beta=2.0, eps=1e-3, n_iter=500),
+            'alpha-1.2_beta-2_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=1.2, beta=2.0, eps=1e-3, n_iter=500),
+            'music': music,
+            'srp_phat': srp_phat,
+        }
+        ang_spec_methods_choices = ang_spec_methods.keys()
         min_freq = 200
         max_freq = 4000
         freq_range = [min_freq, max_freq]
