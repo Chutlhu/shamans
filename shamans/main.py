@@ -122,7 +122,7 @@ def make_data(src_doas_idx, source_type, sound_duration, SNR, noise_type='awgn',
     RT60 = add_reverberation
     if RT60 > 0:
         # generate spatial reverberation with pyroomacoustics
-
+        import ipdb; ipdb.set_trace()
         # convolve in the spatial domain
         pass
     
@@ -389,7 +389,7 @@ def process_experiment(
     src_doas_idx, source_type, sound_duration, 
     snr, noise_type, add_reverberation, 
     loc_method, freq_range, sv_method, seed, nObs, sv_normalization, 
-    mc_seed=1, exp_name=None
+    mc_seed=1, exp_name='tmp'
     ):
     
     # set seed for reproducibility

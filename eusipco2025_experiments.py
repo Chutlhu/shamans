@@ -340,7 +340,7 @@ def run_experiment_3(exp_id, results_dir, mc_seed=None):
     
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--exp_id", type=int, required=True, help="Experiment case id (e.g., 1, 3, etc.)")
+    parser.add_argument("--exp_id", type=int, required=False, help="Experiment case id (e.g., 1, 3, etc.)")
     # Optionally, add extra arguments (e.g., --mc_seed) if you want to vary seeds in parallel
     parser.add_argument("--mc_seed", type=int, default=1, help="Optional Monte Carlo seed override")
     parser.add_argument("--results_dir", type=Path, default="./results", help="Results directory")
@@ -366,19 +366,22 @@ def main():
         
     else:
         # Fallback: a single experiment run with fixed parameters.
-        src_doas = [5, 40]
+        src_doas_idx = [5, 40]
         source_type = 'speech'
         sound_duration = 0.5
         snr = -5
         noise_type = 'awgn'
-        add_reverberation = False
+        add_reverb = 1.74
         loc_method = 'music'
+        freq_range = [200, 4000]
         sv_method = 'gp-steerer'
         nObs = 8
         seed = 13
         sv_normalization = True
-        process_experiment(src_doas, source_type, sound_duration, snr, noise_type, add_reverberation,
-                           loc_method, sv_method, seed, nObs, sv_normalization)
+        process_experiment(src_doas_idx, source_type, sound_duration, snr, noise_type, add_reverb,
+                    loc_method, freq_range,
+                    sv_method, seed, nObs, sv_normalization,
+                )
 
 if __name__ == "__main__":
     main()
