@@ -750,7 +750,7 @@ if __name__ == "__main__":
         """
         
         # define the hyperparameters space for the data
-        max_number_of_sources = 5
+        max_number_of_sources = 6
         n_sources_choice = np.arange(1,max_number_of_sources+1).tolist()
         source_type = ['speech']
         snr = [20]
@@ -774,7 +774,10 @@ if __name__ == "__main__":
         ang_spec_methods = {
             'alpha-2.0_beta-2_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=2.0, beta=2.0, eps=1e-3, n_iter=500),
             'alpha-1.2_beta-2_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=1.2, beta=2.0, eps=1e-3, n_iter=500),
-            'music': music,
+            'music_s-1': lambda X, svect : music(X, svect, n_sources=1),
+            'music_s-2': lambda X, svect : music(X, svect, n_sources=2),
+            'music_s-3': lambda X, svect : music(X, svect, n_sources=3),
+            'music_s-4': lambda X, svect : music(X, svect, n_sources=4),
             'srp_phat': srp_phat,
         }
         ang_spec_methods_choices = ang_spec_methods.keys()
