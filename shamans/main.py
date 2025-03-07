@@ -195,7 +195,7 @@ def make_data(src_doas_idx, source_type, sound_duration, SNR, noise_type='awgn',
         mixture_to_save = mixture / np.max(np.abs(mixture))
         sf.write(output_dir / f'{file_name_data}.wav', mixture_to_save.T, fs)
     
-    return mixture, doas_ref
+    return mixture, doas_ref, speech_files
     
     
 def plot_ang_spec(S:np.array, doas_est_idx:np.array, doas_ref:np.array=None, title=None):
@@ -394,7 +394,7 @@ def process_experiment(
     # set seed for reproducibility
     np.random.seed(mc_seed)
     
-    mixture, doas_ref = make_data(src_doas_idx, source_type, sound_duration, snr, noise_type, add_reverberation, mc_seed=mc_seed)
+    mixture, doas_ref, speech_files = make_data(src_doas_idx, source_type, sound_duration, snr, noise_type, add_reverberation, mc_seed=mc_seed)
     n_sources = len(src_doas_idx)
     
     doas_est, doas_est_idx, ang_spec, ang_spec_freqs = localize(mixture, loc_method, freq_range, n_sources, sv_method, seed, nObs, sv_normalization)
@@ -418,7 +418,7 @@ def process_experiment(
     doas_ref_idx = np.array(src_doas_idx).tolist()
     error = np.array(error).tolist()
     
-    return doas_est, doas_est_idx, error, doas_ref, doas_ref_idx, ang_spec, ang_spec_freqs
+    return doas_est, doas_est_idx, error, doas_ref, doas_ref_idx, ang_spec, ang_spec_freqs, speech_files
 
 
 if __name__ == "__main__":

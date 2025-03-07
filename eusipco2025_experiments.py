@@ -12,7 +12,7 @@ import socket
 from pathlib import Path
 
 from shamans.main import process_experiment
-from shamans.localizers import alpha_stable, inv_wishart, wishart, music, srp_phat
+from shamans.localizers import alpha_stable, music, srp_phat
 
 
 # Assumed to be defined/imported elsewhere:
@@ -60,7 +60,7 @@ def run_experiment_1(exp_id, results_dir, mc_seed=None):
     # Hyperparameter space
     n_sources_choice = [1]
     source_type_choices = ['speech']
-    snr_choices = np.arange(-30, 31, 10).tolist()
+    snr_choices = np.arange(-30, 31, 5).tolist()
     noise_type_choices = ['awgn', 'alpha-1.2', 'alpha-0.8']
     sound_duration_choices = [0.5]
     add_reverb_choices = [False]
@@ -121,7 +121,7 @@ def run_experiment_1(exp_id, results_dir, mc_seed=None):
                     continue
 
                 # Run the experiment (assumes process_experiment is defined elsewhere)
-                doas_est, doas_est_idx, error, doas_ref, doas_ref_idx, ang_spec, ang_spec_freqs = process_experiment(
+                doas_est, doas_est_idx, error, doas_ref, doas_ref_idx, ang_spec, ang_spec_freqs, speech_files = process_experiment(
                     src_doas_idx, source_type, sound_duration, snr, noise_type, add_reverb,
                     loc_method, freq_range,
                     sv_method, seed, nObs, sv_normalization,
@@ -149,6 +149,7 @@ def run_experiment_1(exp_id, results_dir, mc_seed=None):
                 # Scene parameters
                 scene_params = {
                     "record_id": [f's{i}' for i in range(n_sources)],
+                    "speech_files": speech_files,
                     "frame_id": [frame_id] * n_sources,
                     "target_doa": doas_ref,
                     "n_sources": [n_sources] * n_sources,
@@ -265,7 +266,7 @@ def run_experiment_3(exp_id, results_dir, mc_seed=None):
                     logger.warning(f"Experiment {exp_name} already run")
                     continue
 
-                doas_est, doas_est_idx, error, doas_ref, doas_ref_idx, ang_spec, ang_spec_freqs = process_experiment(
+                doas_est, doas_est_idx, error, doas_ref, doas_ref_idx, ang_spec, ang_spec_freqs, speech_files = process_experiment(
                     src_doas_idx, source_type, sound_duration, snr, noise_type, add_reverb,
                     loc_method, freq_range,
                     sv_method, seed, nObs, sv_normalization,
@@ -291,6 +292,7 @@ def run_experiment_3(exp_id, results_dir, mc_seed=None):
 
                 scene_params = {
                     "record_id": [f's{i}' for i in range(n_sources)],
+                    "speech_files": speech_files,
                     "frame_id": [frame_id] * n_sources,
                     "target_doa": doas_ref,
                     "n_sources": [n_sources] * n_sources,
