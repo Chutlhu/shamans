@@ -16,25 +16,25 @@ wait_for_slot() {
 
 echo "Starting experiment 1 with up to $MAX_PROCS parallel processes and $MAX_SEEDS seeds..."
 
-# # Launch experiment 1 with seeds from 0 to MAX_SEEDS-1.
-# for (( seed=0; seed<MAX_SEEDS; seed++ )); do
-#     wait_for_slot
-#     python eusipco2025_experiments.py --exp_id 1 --mc_seed "$seed" &
-# done
+# Launch experiment 1 with seeds from 0 to MAX_SEEDS-1.
+for (( seed=0; seed<MAX_SEEDS; seed++ )); do
+    wait_for_slot
+    python eusipco2025_experiments.py --exp_id 1 --mc_seed "$seed" &
+done
 
-# # Wait for all background processes from experiment 1 to finish.
-# wait
-# echo "Experiment 1 completed."
+# Wait for all background processes from experiment 1 to finish.
+wait
+echo "Experiment 1 completed."
 
 # echo "Starting experiment 3 with up to $MAX_PROCS parallel processes and $MAX_SEEDS seeds..."
 
 # Launch experiment 3 with seeds from 0 to MAX_SEEDS-1.
-for (( seed=0; seed<MAX_SEEDS; seed++ )); do
-    wait_for_slot
-    python eusipco2025_experiments.py --exp_id 3 --mc_seed "$seed" &
-done
+# for (( seed=0; seed<MAX_SEEDS; seed++ )); do
+#     wait_for_slot
+#     python eusipco2025_experiments.py --exp_id 3 --mc_seed "$seed" &
+# done
 
 # Wait for all background processes from experiment 3 to finish.
-wait
+# wait
 
-echo "All experiments have completed."
+# echo "All experiments have completed."
