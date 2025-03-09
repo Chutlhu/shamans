@@ -182,3 +182,4 @@ shamans/third_party/pyroomacoustics/*
 *.sofa
 *.csv
 *.h5
+*.pkl
