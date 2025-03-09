@@ -12,6 +12,27 @@ from flax.training import checkpoints
 # math stuff
 from einops import rearrange
 
+def get_easycom_array(chans):
+    # Channel/Mic 	# 	X (mm) 	Y (mm) 	Z (mm)
+    # 				1 	 82		-5 		-29
+    # 				2 	-01		-1	 	 30
+    # 3 	-77 	-2 		 11
+    # 				4 	-83 	-5 		-60
+    # 				5	N/A 	N/A 	N/A
+    # 				6	N/A 	N/A 	N/A
+    R_3M = np.array(
+        [
+            [+0.082, +0.005, -0.029],
+            [-0.001, +0.001, +0.030],
+            [-0.077, +0.002, +0.011],
+            [-0.083, +0.005, -0.060],
+            [+0.052, +0.010, -0.060],
+            [-0.053, +0.005, -0.060],
+        ]
+    ).T
+    R_3M = R_3M[[2, 0, 1], :] - np.array([[-0.07, 0.0, 0.0]]).T
+    return R_3M[:, chans] if chans is not None else R_3M
+
 def load_config_and_data(model_dir):
     print("# Load config")
     with open(model_dir / "config.yaml") as file:

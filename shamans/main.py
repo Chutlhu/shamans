@@ -102,7 +102,7 @@ def make_data(src_doas_idx, source_type, sound_duration, SNR, noise_type='awgn',
     nfft = int(resolved_sv_dict['nfft'])
     fs = int(resolved_sv_dict['fs'])
 
-    coords = resolved_sv_dict['coords'] # [nFreq x nDoas x nChan x 6]
+    coords = resolved_sv_dict['coords'] # [nFreq x nDoas x nChan x 4]
     svect_ref = resolved_sv_dict['svects'] # [nFreq x nDoas x nChan x 1]
 
     # Constraints to the azimuthal plane
@@ -121,8 +121,6 @@ def make_data(src_doas_idx, source_type, sound_duration, SNR, noise_type='awgn',
     # add reverberation
     RT60 = add_reverberation
     if RT60 > 0:
-        # generate spatial reverberation with pyroomacoustics
-        # convolve in the spatial domain
         pass
     
     # make mixtures
@@ -429,9 +427,10 @@ if __name__ == "__main__":
     sound_duration = 0.5
     snr = -5
     noise_type = 'awgn'
-    add_reverberation = False
+    add_reverberation = 0.200
     
     loc_method = 'music'
+    freq_range = [200, 2000]
     
     sv_method = 'gp-steerer'
     nObs = 8
@@ -440,7 +439,8 @@ if __name__ == "__main__":
 
     # Create a string for the file name
     process_experiment(
-        src_doas, source_type, sound_duration, snr, noise_type, add_reverberation,
-        loc_method,
+        src_doas, source_type, sound_duration,
+        snr, noise_type, add_reverberation,
+        loc_method, freq_range,
         sv_method, seed, nObs, sv_normalization,
     )
