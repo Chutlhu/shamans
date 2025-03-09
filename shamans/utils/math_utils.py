@@ -2,6 +2,47 @@ import numpy as np
 import math
 from scipy.stats import levy_stable
 
+
+def cart2sph(x, y, z):
+    # From wikipedia, adapted from Easycom dataset code
+    # DESCRIPTION: converts cartesian to spherical coordinate
+    # according to the convention of wikipedia
+    # *** INPUTS ***
+    # x  (ndarray) x-coordinate(s) [N x 1]
+    # y  (ndarray) y-coordinate(s) [N x 1]
+    # z  (ndarray) z-coordinate(s) [N x 1]
+    # *** OUTPUTS ***
+    # r     (ndarray) range(s) in meter [N x 1]
+    # theta (ndarray) inclination(s) in radians [N x 1]
+    # phi   (ndarray) azimuth(s) in radians [N x 1]
+
+    hxy = np.hypot(x, y)
+    r = np.hypot(hxy, z)
+    theta = np.arctan2(hxy, z)
+    phi = np.arctan2(y, x)
+    phi = np.mod(phi, 2 * np.pi)
+    return r, theta, phi
+
+def sph2cart(r, theta, phi, xp=np):
+    # From wikipedia, adapted from Easycom dataset code
+    # DESCRIPTION: converts spherical to cartesian coordinate
+    # according to the convention of wikipedia
+
+    # *** INPUTS ***
+    # r     (ndarray) range(s) in meter [N x 1]
+    # theta (ndarray) inclination(s) in radians [N x 1] \in [0, pi]
+    # phi   (ndarray) azimuth(s) in radians [N x 1] \in [0, 2pi]
+    # *** OUTPUTS ***
+    # x  (ndarray) x-coordinate(s) [N x 1]
+    # y  (ndarray) y-coordinate(s) [N x 1]
+    # z  (ndarray) z-coordinate(s) [N x 1]
+
+    rsin_theta = r * xp.sin(theta)
+    x = rsin_theta * xp.cos(phi)
+    y = rsin_theta * xp.sin(phi)
+    z = r * xp.cos(theta)
+    return x, y, z
+
 def generate_emvas_noise(n_samples, dim, alpha, epsilon):
     """
     Generate elliptically multivariate alpha-stable (EMVAS) noise with a diagonal covariance matrix.

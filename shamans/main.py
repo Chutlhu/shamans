@@ -49,7 +49,7 @@ do_output_wav = False
 expertiment_folder = Path("./")
 path_to_speech_data = expertiment_folder / "data/SmallTimit"
 path_to_resolved_models = expertiment_folder / "data/models" 
-
+    
 
 results_dir = expertiment_folder / "results/"
 results_dir.mkdir(parents=True, exist_ok=True)
@@ -90,11 +90,12 @@ parser.add_argument('--seed', type=int, default=13, help='Random seed used for t
 parser.add_argument('--alpha', type=float, default=1.2, help='Alpha parameter for the alpha-stable distribution')
 parser.add_argument('--exp-id', type=int, default=None, help='Name of the experiment')
 
-def make_data(src_doas_idx, source_type, sound_duration, SNR, noise_type='awgn', add_reverberation=False, mc_seed=1):
+
+def make_data(src_doas_idx, source_type, sound_duration, SNR, noise_type='awgn', RT60=False, mc_seed=1):
     
     n_sources = len(src_doas_idx)
     
-    file_name_data = f"doas-{src_doas_idx}_snr-{SNR}_noise-{noise_type}_reverb-{add_reverberation}_mc-{mc_seed}"
+    file_name_data = f"doas-{src_doas_idx}_snr-{SNR}_noise-{noise_type}_reverb-{RT60}_mc-{mc_seed}"
     
     # # Load the ground truth data
     path_to_model = path_to_resolved_models / f"ref_nObs-8_seed-13.pkl"
@@ -102,7 +103,7 @@ def make_data(src_doas_idx, source_type, sound_duration, SNR, noise_type='awgn',
     nfft = int(resolved_sv_dict['nfft'])
     fs = int(resolved_sv_dict['fs'])
 
-    coords = resolved_sv_dict['coords'] # [nFreq x nDoas x nChan x 6]
+    coords = resolved_sv_dict['coords'] # [nFreq x nDoas x nChan x 4]
     svect_ref = resolved_sv_dict['svects'] # [nFreq x nDoas x nChan x 1]
 
     # Constraints to the azimuthal plane
@@ -119,11 +120,19 @@ def make_data(src_doas_idx, source_type, sound_duration, SNR, noise_type='awgn',
     svect_ref_time = np.fft.irfft(svect_ref, nfft, axis=0)
     
     # add reverberation
-    RT60 = add_reverberation
-    if RT60 > 0:
-        # generate spatial reverberation with pyroomacoustics
-        # convolve in the spatial domain
+    if isinstance(RT60, float):
+        # load RIRs pickle file
+        path_to_rirs = expertiment_folder / "data/directives_rirs_with_spear_rt60-{}.pkl".format(RT60)
+        with open(path_to_rirs, 'rb') as f:
+            rirs_dict = pickle.load(f)
+        azimuths = rirs_dict['azimuths']
+        spat_rirs = rirs_dict['rirs']
+        svect_ref_time = rearrange(spat_rirs, 'chan doas time -> time doas chan')
+        # do something with the rirs and svect_ref_time
+    elif RT60 is None:
         pass
+    else:
+        raise ValueError(f"Unknown RT60 value {RT60}")
     
     # make mixtures
     
@@ -418,6 +427,10 @@ def process_experiment(
     doas_ref_idx = np.array(src_doas_idx).tolist()
     error = np.array(error).tolist()
     
+    logger.info(f"Estimated DOAs: {doas_est}")
+    logger.info(f"Ground truth DOAs: {doas_ref}")
+    logger.info(f"Error: {error}")
+    
     return doas_est, doas_est_idx, error, doas_ref, doas_ref_idx, ang_spec, ang_spec_freqs, speech_files
 
 
@@ -429,9 +442,10 @@ if __name__ == "__main__":
     sound_duration = 0.5
     snr = -5
     noise_type = 'awgn'
-    add_reverberation = False
+    add_reverberation = 0.0
     
-    loc_method = 'music'
+    loc_method = 'music_s-1'
+    freq_range = [200, 2000]
     
     sv_method = 'gp-steerer'
     nObs = 8
@@ -440,7 +454,8 @@ if __name__ == "__main__":
 
     # Create a string for the file name
     process_experiment(
-        src_doas, source_type, sound_duration, snr, noise_type, add_reverberation,
-        loc_method,
+        src_doas, source_type, sound_duration,
+        snr, noise_type, add_reverberation,
+        loc_method, freq_range,
         sv_method, seed, nObs, sv_normalization,
     )
