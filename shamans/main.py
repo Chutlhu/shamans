@@ -49,7 +49,7 @@ do_output_wav = False
 expertiment_folder = Path("./")
 path_to_speech_data = expertiment_folder / "data/SmallTimit"
 path_to_resolved_models = expertiment_folder / "data/models" 
-
+    
 
 results_dir = expertiment_folder / "results/"
 results_dir.mkdir(parents=True, exist_ok=True)
@@ -90,6 +90,7 @@ parser.add_argument('--seed', type=int, default=13, help='Random seed used for t
 parser.add_argument('--alpha', type=float, default=1.2, help='Alpha parameter for the alpha-stable distribution')
 parser.add_argument('--exp-id', type=int, default=None, help='Name of the experiment')
 
+
 def make_data(src_doas_idx, source_type, sound_duration, SNR, noise_type='awgn', add_reverberation=False, mc_seed=1):
     
     n_sources = len(src_doas_idx)
@@ -121,6 +122,13 @@ def make_data(src_doas_idx, source_type, sound_duration, SNR, noise_type='awgn',
     # add reverberation
     RT60 = add_reverberation
     if RT60 > 0:
+        # load RIRs pickle file
+        import ipdb; ipdb.set_trace()
+        path_to_rirs = expertiment_folder / "data/directives_rirs_with_spear_rt60-{}.pkl".format(RT60)
+        with open(path_to_rirs, 'rb') as f:
+            rirs_dict = pickle.load(f)
+        azimuths = rirs_dict['azimuths']
+        spat_rirs = rirs_dict['rirs']
         pass
     
     # make mixtures
@@ -427,7 +435,7 @@ if __name__ == "__main__":
     sound_duration = 0.5
     snr = -5
     noise_type = 'awgn'
-    add_reverberation = 0.200
+    add_reverberation = 0.123
     
     loc_method = 'music'
     freq_range = [200, 2000]
