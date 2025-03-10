@@ -88,7 +88,6 @@ def run_experiment_1(exp_id, results_dir, mc_seed=None):
     freq_range = [min_freq, max_freq]
     ang_spec_methods_choices = [
         'alpha-1.2_beta-2_eps-1E-3_iter-500',
-        'alpha-1.2_beta-2_eps-1E-5_iter-500',
         'alpha-1.2_beta-1_eps-1E-3_iter-500',
         'alpha-1.2_beta-0_eps-1E-3_iter-500',
         'music_s-1',
@@ -214,7 +213,7 @@ def run_experiment_3(exp_id, results_dir, mc_seed=None):
     snr_choices = [20]
     noise_type_choices = ['awgn']
     sound_duration_choices = [1.0]
-    rt60_choices = [0, 0.123]
+    rt60_choices = [0.0, 0.123, 0.273]
     if mc_seed is None:
         monte_carlo_run_choices = np.arange(10).tolist()
     else:
@@ -233,16 +232,17 @@ def run_experiment_3(exp_id, results_dir, mc_seed=None):
 
     min_freq, max_freq = 200, 4000
     freq_range = [min_freq, max_freq]
-    ang_spec_methods = {
+    ang_spec_methods_choices = {
         'alpha-2.0_beta-2_eps-1E-3_iter-500',
         'alpha-1.2_beta-2_eps-1E-3_iter-500',
+        'alpha-1.2_beta-1_eps-1E-3_iter-500',
+        'alpha-1.2_beta-0_eps-1E-3_iter-500',
         'music_s-1',
         'music_s-2',
         'music_s-3',
         'music_s-4',
         'srp_phat',
     }
-    ang_spec_methods_choices = list(ang_spec_methods.keys())
 
     doa_grid = np.arange(0, 360, 6)
     doa_grid_idx = np.concatenate([np.arange(0, 20), np.arange(60-20, 60)])
