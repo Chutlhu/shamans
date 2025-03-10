@@ -262,10 +262,10 @@ def run_experiment_3(exp_id, results_dir, mc_seed=None):
     counter_exp = 0
 
     for setting in tqdm(data_settings, desc="Scene settings"):
-        n_sources, source_type, sound_duration, snr, noise_type, add_reverb, mc_seed = setting
+        n_sources, source_type, sound_duration, snr, noise_type, rt60, mc_seed = setting
         np.random.seed(mc_seed)
         src_doas_idx = np.random.choice(doa_grid_idx, n_sources, replace=False)
-        frame_id = f"nSrc-{n_sources}_doas-{src_doas_idx}_type-{source_type}-duration-{sound_duration}-snr-{snr}_noise-{noise_type}_reverb-{add_reverb}_mc-{mc_seed}"
+        frame_id = f"nSrc-{n_sources}_doas-{src_doas_idx}_type-{source_type}-duration-{sound_duration}-snr-{snr}_noise-{noise_type}_reverb-{rt60}_mc-{mc_seed}"
         date_str = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
         for loc_method in tqdm(ang_spec_methods_choices, leave=False, desc="Loc methods"):
@@ -278,7 +278,7 @@ def run_experiment_3(exp_id, results_dir, mc_seed=None):
                     continue
 
                 doas_est, doas_est_idx, error, doas_ref, doas_ref_idx, ang_spec, ang_spec_freqs, speech_files = process_experiment(
-                    src_doas_idx, source_type, sound_duration, snr, noise_type, add_reverb,
+                    src_doas_idx, source_type, sound_duration, snr, noise_type, rt60,
                     loc_method, freq_range,
                     sv_method, seed, nObs, sv_normalization,
                     mc_seed=mc_seed,
@@ -310,7 +310,7 @@ def run_experiment_3(exp_id, results_dir, mc_seed=None):
                     "duration": [sound_duration] * n_sources,
                     "snr": [snr] * n_sources,
                     "noise_type": [noise_type] * n_sources,
-                    "rt60": [add_reverb] * n_sources,
+                    "rt60": [rt60] * n_sources,
                     "mc_seed": [mc_seed] * n_sources,
                 }
                 df_scene = pd.DataFrame(scene_params)
@@ -404,10 +404,10 @@ def run_experiment_5(exp_id, results_dir, mc_seed=None):
     counter_exp = 0
 
     for setting in tqdm(data_settings, desc="Scene settings"):
-        n_sources, source_type, sound_duration, snr, noise_type, add_reverb, mc_seed = setting
+        n_sources, source_type, sound_duration, snr, noise_type, rt60, mc_seed = setting
         np.random.seed(mc_seed)
         src_doas_idx = np.random.choice(doa_grid_idx, n_sources, replace=False)
-        frame_id = f"nSrc-{n_sources}_doas-{src_doas_idx}_type-{source_type}-duration-{sound_duration}-snr-{snr}_noise-{noise_type}_reverb-{add_reverb}_mc-{mc_seed}"
+        frame_id = f"nSrc-{n_sources}_doas-{src_doas_idx}_type-{source_type}-duration-{sound_duration}-snr-{snr}_noise-{noise_type}_reverb-{rt60}_mc-{mc_seed}"
         date_str = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
         for loc_method in tqdm(ang_spec_methods_choices, leave=False, desc="Loc methods"):
@@ -420,7 +420,7 @@ def run_experiment_5(exp_id, results_dir, mc_seed=None):
                     continue
 
                 doas_est, doas_est_idx, error, doas_ref, doas_ref_idx, ang_spec, ang_spec_freqs, speech_files = process_experiment(
-                    src_doas_idx, source_type, sound_duration, snr, noise_type, add_reverb,
+                    src_doas_idx, source_type, sound_duration, snr, noise_type, rt60,
                     loc_method, freq_range,
                     sv_method, seed, nObs, sv_normalization,
                     mc_seed=mc_seed,
@@ -452,7 +452,7 @@ def run_experiment_5(exp_id, results_dir, mc_seed=None):
                     "duration": [sound_duration] * n_sources,
                     "snr": [snr] * n_sources,
                     "noise_type": [noise_type] * n_sources,
-                    "rt60": [add_reverb] * n_sources,
+                    "rt60": [rt60] * n_sources,
                     "mc_seed": [mc_seed] * n_sources,
                 }
                 df_scene = pd.DataFrame(scene_params)
@@ -496,7 +496,7 @@ def run_experiment_5(exp_id, results_dir, mc_seed=None):
     
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--exp_id", type=int, required=True, help="Experiment case id (e.g., 1, 3, etc.)")
+    parser.add_argument("--exp_id", type=int, default=None, help="Experiment case id (e.g., 1, 3, etc.)")
     # Optionally, add extra arguments (e.g., --mc_seed) if you want to vary seeds in parallel
     parser.add_argument("--mc_seed", type=int, default=1, help="Optional Monte Carlo seed override")
     parser.add_argument("--results_dir", type=Path, default="./results", help="Results directory")
@@ -514,11 +514,8 @@ def main():
         # For example, wrap your process_experiment calls with a seed override if desired.
         logger.info(f"Using Monte Carlo seed override: {args.mc_seed}")
 
-    if exp_id == 1:
+    if not exp_id is None:
         run_experiment_1(exp_id, results_dir, args.mc_seed)
-    
-    elif exp_id == 3:
-        run_experiment_3(exp_id, results_dir, args.mc_seed)
         
     else:
         # Fallback: a single experiment run with fixed parameters.
