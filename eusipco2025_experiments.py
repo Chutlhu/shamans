@@ -60,10 +60,10 @@ def run_experiment_1(exp_id, results_dir, mc_seed=None):
     # Hyperparameter space
     n_sources_choice = [1]
     source_type_choices = ['speech']
-    snr_choices = np.arange(-30, 31, 5).tolist()
-    noise_type_choices = ['awgn', 'alpha-1.2', 'alpha-0.8']
+    snr_choices = np.arange(-30, 30, 5).tolist()
+    noise_type_choices = ['awgn', 'alpha-0.8']
     sound_duration_choices = [0.5]
-    add_reverb_choices = [False]
+    rt60_choices = [-1, 0.0, 0.123, 0.273]
     if mc_seed is None:
         monte_carlo_run_choices = np.arange(10).tolist()  # multiple runs per setting
     else:
@@ -74,7 +74,7 @@ def run_experiment_1(exp_id, results_dir, mc_seed=None):
     # Create the grid of experiment settings
     data_settings = list(itertools.product(
         n_sources_choice, source_type_choices, sound_duration_choices,
-        snr_choices, noise_type_choices, add_reverb_choices, monte_carlo_run_choices
+        snr_choices, noise_type_choices, rt60_choices, monte_carlo_run_choices
     ))
 
     # Steering vector model configurations
@@ -86,12 +86,14 @@ def run_experiment_1(exp_id, results_dir, mc_seed=None):
     # Localization method settings
     min_freq, max_freq = 200, 4000
     freq_range = [min_freq, max_freq]
-    ang_spec_methods = {
-        'alpha-1.2_beta-2_eps-1E-3_iter-500': lambda X, sv: alpha_stable(X, sv, alpha=1.2, beta=2.0, eps=1e-3, n_iter=500),
-        'music_s-1': lambda X, sv: music(X, sv, n_sources=1),
-        'srp_phat': srp_phat,
-    }
-    ang_spec_methods_choices = list(ang_spec_methods.keys())
+    ang_spec_methods_choices = [
+        'alpha-1.2_beta-2_eps-1E-3_iter-500',
+        'alpha-1.2_beta-2_eps-1E-5_iter-500',
+        'alpha-1.2_beta-1_eps-1E-3_iter-500',
+        'alpha-1.2_beta-0_eps-1E-3_iter-500',
+        'music_s-1',
+        'srp_phat'
+    ]
 
     # DOA grid settings
     doa_grid = np.arange(0, 360, 6)
@@ -104,10 +106,10 @@ def run_experiment_1(exp_id, results_dir, mc_seed=None):
     counter_exp = 0
 
     for setting in tqdm(data_settings, desc="Scene settings"):
-        n_sources, source_type, sound_duration, snr, noise_type, add_reverb, mc_seed = setting
+        n_sources, source_type, sound_duration, snr, noise_type, rt60, mc_seed = setting
         np.random.seed(mc_seed)
         src_doas_idx = np.random.choice(doa_grid_idx, n_sources)
-        frame_id = f"nSrc-{n_sources}_doas-{src_doas_idx}_type-{source_type}-duration-{sound_duration}-snr-{snr}_noise-{noise_type}_reverb-{add_reverb}_mc-{mc_seed}"
+        frame_id = f"nSrc-{n_sources}_doas-{src_doas_idx}_type-{source_type}-duration-{sound_duration}-snr-{snr}_noise-{noise_type}_reverb-{rt60}_mc-{mc_seed}"
         date_str = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
         for loc_method in tqdm(ang_spec_methods_choices, leave=False, desc="Loc methods"):
@@ -122,7 +124,7 @@ def run_experiment_1(exp_id, results_dir, mc_seed=None):
 
                 # Run the experiment (assumes process_experiment is defined elsewhere)
                 doas_est, doas_est_idx, error, doas_ref, doas_ref_idx, ang_spec, ang_spec_freqs, speech_files = process_experiment(
-                    src_doas_idx, source_type, sound_duration, snr, noise_type, add_reverb,
+                    src_doas_idx, source_type, sound_duration, snr, noise_type, rt60,
                     loc_method, freq_range,
                     sv_method, seed, nObs, sv_normalization,
                     mc_seed=mc_seed,
@@ -156,7 +158,7 @@ def run_experiment_1(exp_id, results_dir, mc_seed=None):
                     "duration": [sound_duration] * n_sources,
                     "snr": [snr] * n_sources,
                     "noise_type": [noise_type] * n_sources,
-                    "add_reverberation": [add_reverb] * n_sources,
+                    "rt60": [rt60] * n_sources,
                     "mc_seed": [mc_seed] * n_sources,
                 }
                 df_scene = pd.DataFrame(scene_params)
@@ -211,8 +213,8 @@ def run_experiment_3(exp_id, results_dir, mc_seed=None):
     source_type_choices = ['speech']
     snr_choices = [20]
     noise_type_choices = ['awgn']
-    sound_duration_choices = [0.5, 1.0]
-    add_reverb_choices = [False]
+    sound_duration_choices = [1.0]
+    rt60_choices = [0, 0.123]
     if mc_seed is None:
         monte_carlo_run_choices = np.arange(10).tolist()
     else:
@@ -222,7 +224,7 @@ def run_experiment_3(exp_id, results_dir, mc_seed=None):
 
     data_settings = list(itertools.product(
         n_sources_choice, source_type_choices, sound_duration_choices,
-        snr_choices, noise_type_choices, add_reverb_choices, monte_carlo_run_choices
+        snr_choices, noise_type_choices, rt60_choices, monte_carlo_run_choices
     ))
 
     base_sv_models = [['ref', 8, 13], ['alg', 8, 13]]
@@ -232,13 +234,13 @@ def run_experiment_3(exp_id, results_dir, mc_seed=None):
     min_freq, max_freq = 200, 4000
     freq_range = [min_freq, max_freq]
     ang_spec_methods = {
-        'alpha-2.0_beta-2_eps-1E-3_iter-500': lambda X, sv: alpha_stable(X, sv, alpha=2.0, beta=2.0, eps=1e-3, n_iter=500),
-        'alpha-1.2_beta-2_eps-1E-3_iter-500': lambda X, sv: alpha_stable(X, sv, alpha=1.2, beta=2.0, eps=1e-3, n_iter=500),
-        'music_s-1': lambda X, sv: music(X, sv, n_sources=1),
-        'music_s-2': lambda X, sv: music(X, sv, n_sources=2),
-        'music_s-3': lambda X, sv: music(X, sv, n_sources=3),
-        'music_s-4': lambda X, sv: music(X, sv, n_sources=4),
-        'srp_phat': srp_phat,
+        'alpha-2.0_beta-2_eps-1E-3_iter-500',
+        'alpha-1.2_beta-2_eps-1E-3_iter-500',
+        'music_s-1',
+        'music_s-2',
+        'music_s-3',
+        'music_s-4',
+        'srp_phat',
     }
     ang_spec_methods_choices = list(ang_spec_methods.keys())
 
@@ -299,7 +301,7 @@ def run_experiment_3(exp_id, results_dir, mc_seed=None):
                     "duration": [sound_duration] * n_sources,
                     "snr": [snr] * n_sources,
                     "noise_type": [noise_type] * n_sources,
-                    "add_reverberation": [add_reverb] * n_sources,
+                    "rt60": [add_reverb] * n_sources,
                     "mc_seed": [mc_seed] * n_sources,
                 }
                 df_scene = pd.DataFrame(scene_params)
@@ -373,13 +375,13 @@ def main():
         sound_duration = 0.5
         snr = -5
         noise_type = 'awgn'
-        add_reverberation = False
+        rt60 = False
         loc_method = 'music'
         sv_method = 'gp-steerer'
         nObs = 8
         seed = 13
         sv_normalization = True
-        process_experiment(src_doas, source_type, sound_duration, snr, noise_type, add_reverberation,
+        process_experiment(src_doas, source_type, sound_duration, snr, noise_type, rt60,
                            loc_method, sv_method, seed, nObs, sv_normalization)
 
 if __name__ == "__main__":

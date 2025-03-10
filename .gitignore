@@ -176,6 +176,7 @@ data/selected_models
 data/SmallTimit
 data/models
 results/
+results_/
 
 shamans/third_party/pyroomacoustics/*
 

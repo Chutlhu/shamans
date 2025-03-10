@@ -61,6 +61,9 @@ output_dir.mkdir(parents=True, exist_ok=True)
 ang_spec_methods = {
     'alpha-2.0_beta-2_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=2.0, beta=2.0, eps=1e-3, n_iter=500),
     'alpha-1.2_beta-2_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=1.2, beta=2.0, eps=1e-3, n_iter=500),
+    'alpha-1.2_beta-2_eps-1E-5_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=1.2, beta=2.0, eps=1e-5, n_iter=500),
+    'alpha-1.2_beta-1_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=1.2, beta=1.0, eps=1e-3, n_iter=500),
+    'alpha-1.2_beta-0_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=1.2, beta=0.0, eps=1e-3, n_iter=500),
     'music_s-1': lambda X, svect : music(X, svect, n_sources=1),
     'music_s-2': lambda X, svect : music(X, svect, n_sources=2),
     'music_s-3': lambda X, svect : music(X, svect, n_sources=3),
@@ -120,7 +123,8 @@ def make_data(src_doas_idx, source_type, sound_duration, SNR, noise_type='awgn',
     svect_ref_time = np.fft.irfft(svect_ref, nfft, axis=0)
     
     # add reverberation
-    if isinstance(RT60, float):
+    if RT60 >= 0:
+        logger.info('Load RIRs')
         # load RIRs pickle file
         path_to_rirs = expertiment_folder / "data/directives_rirs_with_spear_rt60-{}.pkl".format(RT60)
         with open(path_to_rirs, 'rb') as f:
@@ -128,8 +132,9 @@ def make_data(src_doas_idx, source_type, sound_duration, SNR, noise_type='awgn',
         azimuths = rirs_dict['azimuths']
         spat_rirs = rirs_dict['rirs']
         svect_ref_time = rearrange(spat_rirs, 'chan doas time -> time doas chan')
+        assert svect_ref_time.shape[2] == nChan, "Mismatch in the number of channels"
         # do something with the rirs and svect_ref_time
-    elif RT60 is None:
+    elif RT60 == -1:
         pass
     else:
         raise ValueError(f"Unknown RT60 value {RT60}")
@@ -162,14 +167,16 @@ def make_data(src_doas_idx, source_type, sound_duration, SNR, noise_type='awgn',
     assert np.all(np.std(src_signals, axis=-1) > 0), "Source signals are empty"
     
     # make mixture
+    logger.info('Make mixture')
     x = []
-    for i in range(svect_ref_time.shape[2]):
+    for i in range(nChan):
         xi = []
         for j in range(len(src_signals)):
             s = src_signals[j] / np.std(src_signals[j])
-            xi.append(np.convolve(svect_ref_time[:,src_doas_idx[j],i], s, mode='full'))
+            xi.append(scipy.signal.fftconvolve(svect_ref_time[:,src_doas_idx[j],i], s, mode='full'))
         x.append(np.sum(np.array(xi), axis=0))
     mixture = np.array(x) # [nChan x nSamples]
+    mixture = mixture[:,:len(s)] # [nChan x nSamples]
     logger.debug("Mixture shape: ", mixture.shape)
 
     # add noise
@@ -183,7 +190,7 @@ def make_data(src_doas_idx, source_type, sound_duration, SNR, noise_type='awgn',
     noise = noise / np.linalg.norm(noise) * np.linalg.norm(mixture) / 10**(SNR/20)
     mixture = mixture + noise # [nChan x nSamples]
     logger.debug("Mixture shape: ", mixture.shape)
-
+    
     time_src = np.arange(src_signals.shape[1]) / fs
     time_mix = np.arange(mixture.shape[1]) / fs 
     if do_plot:
@@ -292,7 +299,7 @@ def localize(
     fs =  int(resolved_sv_dict['fs'])
     X = librosa.stft(mixture, n_fft=nfft, hop_length=nfft//2) # [nChan, nfft/2, nFrames]
     X = X[:,:nFreq,:] # [nChan, nFreq, nFrames]
-    
+        
     # Focus on a specific frequency range
     freqs_ = np.fft.fftfreq(nfft, 1/fs)[:nFreq]
     assert np.allclose(freqs, freqs_), "Mismatch in the frequency bins"
@@ -395,7 +402,7 @@ def compute_metrics(doas_est, doas_ref):
 
 def process_experiment(
     src_doas_idx, source_type, sound_duration, 
-    snr, noise_type, add_reverberation, 
+    snr, noise_type, rt60, 
     loc_method, freq_range, sv_method, seed, nObs, sv_normalization, 
     mc_seed=1, exp_name=None
     ):
@@ -403,7 +410,7 @@ def process_experiment(
     # set seed for reproducibility
     np.random.seed(mc_seed)
     
-    mixture, doas_ref, speech_files = make_data(src_doas_idx, source_type, sound_duration, snr, noise_type, add_reverberation, mc_seed=mc_seed)
+    mixture, doas_ref, speech_files = make_data(src_doas_idx, source_type, sound_duration, snr, noise_type, rt60, mc_seed=mc_seed)
     n_sources = len(src_doas_idx)
     
     doas_est, doas_est_idx, ang_spec, ang_spec_freqs = localize(mixture, loc_method, freq_range, n_sources, sv_method, seed, nObs, sv_normalization)
@@ -442,7 +449,7 @@ if __name__ == "__main__":
     sound_duration = 0.5
     snr = -5
     noise_type = 'awgn'
-    add_reverberation = 0.0
+    rt60 = 0.273
     
     loc_method = 'music_s-1'
     freq_range = [200, 2000]
@@ -455,7 +462,7 @@ if __name__ == "__main__":
     # Create a string for the file name
     process_experiment(
         src_doas, source_type, sound_duration,
-        snr, noise_type, add_reverberation,
+        snr, noise_type, rt60,
         loc_method, freq_range,
         sv_method, seed, nObs, sv_normalization,
     )
