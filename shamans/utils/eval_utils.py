@@ -8,16 +8,24 @@ def angular_difference(a,b):
 
 
 def compute_metrics(predictions, groundtruth, threshold, candidate_doas):
+    # sort the predictions and groundtruth
+    predictions = np.sort(predictions)
+    groundtruth = np.sort(groundtruth)
     # Build the cost matrix: rows for predictions, columns for groundtruth.
     cost_matrix = np.zeros((len(predictions), len(groundtruth)))
     for i, pred in enumerate(predictions):
         for j, gt in enumerate(groundtruth):
             cost_matrix[i, j] = angular_difference(pred, gt)
+
+    # For the Hungarian algorithm, assign a high cost for pairs that don't meet the threshold
+    # (This ensures the algorithm will only select these pairs if absolutely forced.)
+    cost_matrix_valid = cost_matrix.copy()
+    cost_matrix_valid[cost_matrix_valid >= threshold] = 1e6
+
+    # Apply the Hungarian algorithm to the modified cost matrix
+    row_ind, col_ind = linear_sum_assignment(cost_matrix_valid)
     
-    # Solve the assignment problem using the Hungarian algorithm.
-    row_ind, col_ind = linear_sum_assignment(cost_matrix)
-    
-    # Filter assignments based on the threshold.
+    # Extract only those pairs that satisfy the threshold condition
     true_positive_pairs = []
     for i, j in zip(row_ind, col_ind):
         if cost_matrix[i, j] < threshold:
@@ -27,7 +35,7 @@ def compute_metrics(predictions, groundtruth, threshold, candidate_doas):
     TP = len(true_positive_pairs)
     FP = len(predictions) - TP
     FN = len(groundtruth) - TP
-    
+        
     TN = compute_true_negatives_with_candidates(groundtruth, threshold, candidate_doas)
     TPR = TP / (TP + FN) if (TP + FN) > 0 else 0    
     FPR = FP / (FP + TN) if (FP + TN) > 0 else 0
@@ -36,15 +44,16 @@ def compute_metrics(predictions, groundtruth, threshold, candidate_doas):
     recall = TP / (TP + FN) if (TP + FN) > 0 else 0
     f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
     accuracy = TP / (TP + FP + FN) if (TP + FP + FN) > 0 else 0
-    
+
     # Mean error for true positive pairs.
     errors = [cost_matrix[i, j] for i, j in true_positive_pairs]
     mean_error = np.mean(errors) if errors else None
     
     return {
-        "true_positives": TP,
-        "false_positives": FP,
-        "false_negatives": FN,
+        "TP": TP,
+        "FP": FP,
+        "FN": FN,
+        "TN": TN,
         "precision": precision,
         "recall": recall,
         "tpr": TPR,
