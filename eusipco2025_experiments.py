@@ -516,10 +516,13 @@ def main():
 
     if exp_id == 1:
         run_experiment_1(exp_id, results_dir, args.mc_seed)
+        
     elif exp_id == 3:
         run_experiment_3(exp_id, results_dir, args.mc_seed)
+        
     elif exp_id == 4:
         run_experiment_4(exp_id, results_dir, args.mc_seed)
+        
     elif exp_id == 5:
         run_experiment_5(exp_id, results_dir, args.mc_seed)
         
