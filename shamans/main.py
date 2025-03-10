@@ -68,6 +68,7 @@ ang_spec_methods = {
     'alpha-1.6_beta-1_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=1.6, beta=1.0, eps=1e-3, n_iter=500),
     'alpha-0.8_beta-1_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=0.8, beta=1.0, eps=1e-3, n_iter=500),
     'alpha-0.4_beta-1_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=0.4, beta=1.0, eps=1e-3, n_iter=500),
+    'alpha-0.1_beta-1_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=0.1, beta=1.0, eps=1e-3, n_iter=500),
     'music_s-1': lambda X, svect : music(X, svect, n_sources=1),
     'music_s-2': lambda X, svect : music(X, svect, n_sources=2),
     'music_s-3': lambda X, svect : music(X, svect, n_sources=3),
@@ -159,12 +160,20 @@ def make_data(src_doas_idx, source_type, sound_duration, SNR, noise_type='awgn',
     elif "alpha" in source_type:
         src_alpha = float(source_type.split("-")[1])
         size = (int(fs * sound_duration),)
-        s = levy_stable.rvs(alpha=src_alpha, beta=0, loc=0, size=size)
-        s = s / np.std(s)
+        src_signals = []
+        for i in range(n_sources):
+            s = levy_stable.rvs(alpha=src_alpha, beta=0, loc=0, size=size)
+            s = s / np.std(s)
+            src_signals.append(s)
+        speech_files = [f'{i}' for i in range(n_sources)]
     elif source_type == "gauss":
         size = (int(fs * sound_duration),)
-        s = np.random.randn(size)
-        s = s / np.std(s)
+        src_signals = []
+        for i in range(n_sources):
+            s = np.random.randn(size)
+            s = s / np.std(s)
+            src_signals.append(s)
+        speech_files = [f'{i}' for i in range(n_sources)]
     src_signals = np.array(src_signals)
     logger.debug("src_signals shape: ", src_signals.shape)
     # check the the selected source are active

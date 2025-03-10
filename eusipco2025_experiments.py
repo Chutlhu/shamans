@@ -359,7 +359,7 @@ def run_experiment_4(exp_id, results_dir, mc_seed=None):
 def run_experiment_5(exp_id, results_dir, mc_seed=None):
     
     n_sources_choice = [3]
-    source_type_choices = [f'alpha-{a}' for a in ['0.0', '0.4', '0.8', '1.2', '1.6', '2.0']]
+    source_type_choices = [f'alpha-{a}' for a in ['0.1', '0.4', '0.8', '1.2', '1.6', '2.0']]
     snr_choices = [20]
     noise_type_choices = ['awgn']
     sound_duration_choices = [1.0]
@@ -390,6 +390,7 @@ def run_experiment_5(exp_id, results_dir, mc_seed=None):
         'alpha-1.2_beta-1_eps-1E-3_iter-500',
         'alpha-0.8_beta-1_eps-1E-3_iter-500',
         'alpha-0.4_beta-1_eps-1E-3_iter-500',
+        'alpha-0.1_beta-1_eps-1E-3_iter-500',
         'music_s-3',
         'srp_phat',
     }
