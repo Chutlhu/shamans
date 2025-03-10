@@ -146,7 +146,7 @@ def make_data(src_doas_idx, source_type, sound_duration, SNR, noise_type='awgn',
     if source_type == "speech":
         speech_files = list(path_to_speech_data.glob("*.wav"))
         # randomly select n_sources speech files
-        speech_files = np.random.choice(speech_files, n_sources)
+        speech_files = np.random.choice(speech_files, n_sources, replace=False)
         src_signals = []
         for i, speech_file in enumerate(speech_files):
             s, fs = librosa.load(speech_file, sr=fs, duration=sound_duration, mono=True, offset=0.5)

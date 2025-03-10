@@ -107,7 +107,7 @@ def run_experiment_1(exp_id, results_dir, mc_seed=None):
     for setting in tqdm(data_settings, desc="Scene settings"):
         n_sources, source_type, sound_duration, snr, noise_type, rt60, mc_seed = setting
         np.random.seed(mc_seed)
-        src_doas_idx = np.random.choice(doa_grid_idx, n_sources)
+        src_doas_idx = np.random.choice(doa_grid_idx, n_sources, replace=False)
         frame_id = f"nSrc-{n_sources}_doas-{src_doas_idx}_type-{source_type}-duration-{sound_duration}-snr-{snr}_noise-{noise_type}_reverb-{rt60}_mc-{mc_seed}"
         date_str = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
@@ -207,8 +207,9 @@ def run_experiment_3(exp_id, results_dir, mc_seed=None):
     - Sources: from 1 up to 6 (speech)
     - SNR: set to 20 dB
     """
-    max_number_of_sources = 6
-    n_sources_choice = np.arange(1, max_number_of_sources + 1).tolist()
+    # max_number_of_sources = 6
+    # n_sources_choice = np.arange(1, max_number_of_sources + 1).tolist()
+    n_sources_choice = [3]
     source_type_choices = ['speech']
     snr_choices = [20]
     noise_type_choices = ['awgn']
@@ -255,7 +256,7 @@ def run_experiment_3(exp_id, results_dir, mc_seed=None):
     for setting in tqdm(data_settings, desc="Scene settings"):
         n_sources, source_type, sound_duration, snr, noise_type, add_reverb, mc_seed = setting
         np.random.seed(mc_seed)
-        src_doas_idx = np.random.choice(doa_grid_idx, n_sources)
+        src_doas_idx = np.random.choice(doa_grid_idx, n_sources, replace=False)
         frame_id = f"nSrc-{n_sources}_doas-{src_doas_idx}_type-{source_type}-duration-{sound_duration}-snr-{snr}_noise-{noise_type}_reverb-{add_reverb}_mc-{mc_seed}"
         date_str = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
@@ -339,7 +340,8 @@ def run_experiment_3(exp_id, results_dir, mc_seed=None):
                 if counter_exp % 20 == 0:
                     save_results(results_df, ang_spec_list, results_dir, csv_filename)
 
-    save_results(results_df, ang_spec_list, results_dir, csv_filename)
+    if not results_df.empty:
+        save_results(results_df, ang_spec_list, results_dir, csv_filename)
     
     
 def main():
