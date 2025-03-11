@@ -73,6 +73,8 @@ ang_spec_methods = {
     'music_s-2': lambda X, svect : music(X, svect, n_sources=2),
     'music_s-3': lambda X, svect : music(X, svect, n_sources=3),
     'music_s-4': lambda X, svect : music(X, svect, n_sources=4),
+    'music_s-5': lambda X, svect : music(X, svect, n_sources=5),
+    'music_s-6': lambda X, svect : music(X, svect, n_sources=6),
     'srp_phat': srp_phat,
 }
 
