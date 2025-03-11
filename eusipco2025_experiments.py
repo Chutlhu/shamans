@@ -67,7 +67,7 @@ def run_experiment_1(exp_id, results_dir, mc_seed=None):
     # Hyperparameter space
     n_sources_choice = [1]
     source_type_choices = ['speech']
-    snr_choices = np.arange(-15, 15, 3).tolist()
+    snr_choices = np.arange(-15, 24, 3).tolist()
     noise_type_choices = ['awgn', 'alpha-0.8']
     sound_duration_choices = [0.1, 1.0]
     rt60_choices = [0.0, 0.123, 0.273]
@@ -448,6 +448,7 @@ def run_experiment_5(exp_id, results_dir, mc_seed=None):
                     "record_id": [f's{i}' for i in range(n_sources)],
                     "speech_files": speech_files,
                     "frame_id": [frame_id] * n_sources,
+                    "source_type": [source_type] * n_sources,
                     "target_doa": doas_ref,
                     "n_sources": [n_sources] * n_sources,
                     "duration": [sound_duration] * n_sources,
