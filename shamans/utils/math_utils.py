@@ -84,7 +84,7 @@ def test_generate_emvas_noise():
     print(noise_samples[:5])  # Print first 5 samples
 
 
-def compute_alpha(self, n, value_FTM):
+def estimate_levy_exponent(X_FTM):
     """
     This is the function to estimate alpha for a FTM tensor (F: number of frequency, T: number of time frame, M: number of microphone)
     """
@@ -101,22 +101,22 @@ def compute_alpha(self, n, value_FTM):
         idx = np.random.rand(*a.shape).argsort(axis=axis)
         return np.take_along_axis(a, idx, axis=axis)
 
-    K = self.n_freq * self.n_time
+    nFreq, nTime, nChan = X_FTM.shape
+
+    K = nFreq * nTime
     K1, K2, _ = factor_int(K)
-    rnd_X_FTM = shuffle_along_axis(self.convert_to_NumpyArray(value_FTM),
-                                    axis=0)
-    rnd_X_FTxM = self.xp.array(shuffle_along_axis(rnd_X_FTM,
-                                axis=1)).reshape(-1, rnd_X_FTM.shape[-1])
-    Y_K2M = self.xp.zeros((K2, self.n_mic)).astype(self.xp.complex64)
+    rnd_X_FTM = shuffle_along_axis(X_FTM, axis=0)
+    rnd_X_FTxM = np.array(shuffle_along_axis(rnd_X_FTM, axis=1)).reshape(-1, rnd_X_FTM.shape[-1])
+    Y_K2M = np.zeros((K2, nChan)).astype(np.complex64)
     for k2 in range(K2):
         Y_K2M[k2] = rnd_X_FTxM[k2*K1:  K1 + k2*K1, :].sum(axis=0)
-    logXnorm_FT = self.xp.log(self.xp.linalg.norm(rnd_X_FTxM, axis=-1))
-    logYnorm_FT = self.xp.log(self.xp.linalg.norm(Y_K2M, axis=-1))
-    self.alphas[n] = (1 / self.xp.log(K1) *
-                        (1/K2 * logYnorm_FT.sum() -
-                        1/K * logXnorm_FT.sum())) ** (-1)
-    print("alpha value for {}th source :{}".format(n +1, self.alphas[n]))
-    return self.alphas[n]
+    logXnorm_FT = np.log(np.linalg.norm(rnd_X_FTxM, axis=-1))
+    logYnorm_FT = np.log(np.linalg.norm(Y_K2M, axis=-1))
+    alpha = (1 / np.log(K1) *
+            (1/K2 * logYnorm_FT.sum() -
+            1/K * logXnorm_FT.sum())) ** (-1)
+    # print("alpha value for {}th source :{}".format(n +1, self.alphas[n]))
+    return alpha
 
 
 if __name__ == "__main__":
