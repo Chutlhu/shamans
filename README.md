@@ -7,10 +7,7 @@
 pip install -r requirements.txt
 ```
 
-2. Download the dataset and unzip the dataset and the models in data folder
-```bash
-unzip dataset.zip -d /path/to/data
-```
+2. Download the models for [this Drive folder](https://drive.google.com/drive/folders/1TNzmW4RWqV4RMq-mVSH2hSedDv3HOtsU?usp=drive_link) and put them in the `data/models/` folder
 
 ## Run the experiments
 
