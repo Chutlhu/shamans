@@ -66,7 +66,7 @@ pip install -r requirements.txt
     ```bash
     python main.py --exp-id 3
     ```
-4. Re-used data from experiment 3 to compute localization accuracy
+4. Experiment 4: Re-used data from experiment 3 to compute localization accuracy
 5. Experiment 5: study localization accuracy for different $\alpha$ parameters and for different $\alpha$ of the mixture.
     ```bash
     python main.py --exp-id 5
