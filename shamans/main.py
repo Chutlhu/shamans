@@ -15,6 +15,7 @@ import pickle
 from tqdm import tqdm
 
 from shamans.localizers import alpha_stable, inv_wishart, wishart, music, srp_phat
+from shamans.utils.math_utils import estimate_levy_exponent
 
 import pandas as pd
 import numpy as np
@@ -73,6 +74,8 @@ ang_spec_methods = {
     'music_s-2': lambda X, svect : music(X, svect, n_sources=2),
     'music_s-3': lambda X, svect : music(X, svect, n_sources=3),
     'music_s-4': lambda X, svect : music(X, svect, n_sources=4),
+    'music_s-5': lambda X, svect : music(X, svect, n_sources=5),
+    'music_s-6': lambda X, svect : music(X, svect, n_sources=6),
     'srp_phat': srp_phat,
 }
 
@@ -311,7 +314,11 @@ def localize(
     nfft = int(resolved_sv_dict['nfft'])
     fs =  int(resolved_sv_dict['fs'])
     X = librosa.stft(mixture, n_fft=nfft, hop_length=nfft//2) # [nChan, nfft/2, nFrames]
+    
+    est_alpha = estimate_levy_exponent(rearrange(X, 'chan freq time -> freq time chan'))        
+    
     X = X[:,:nFreq,:] # [nChan, nFreq, nFrames]
+    
         
     # Focus on a specific frequency range
     freqs_ = np.fft.fftfreq(nfft, 1/fs)[:nFreq]
@@ -325,7 +332,11 @@ def localize(
     assert nFreq == nFreq_, "Mismatch in the number of frequency bins"
     assert nChan == nChan_, "Mismatch in the number of channels"
     
-    ang_spec = ang_spec_methods[loc_method](X, svect) # [nDoas x nFreq]
+    if 'alpha-X.X' in loc_method:
+        ang_spec = alpha_stable(X, svect, alpha=est_alpha, beta=1.0, eps=1e-3, n_iter=500) # [nDoas x nFreq]
+    else:
+        ang_spec = ang_spec_methods[loc_method](X, svect) # [nDoas x nFreq]
+    
     assert ang_spec.shape[0] == (nDoas), f"Expected first shape {(nDoas)}, got {ang_spec.shape[0]}"
     
     # estimate source location, get the n_sources highest peaks
@@ -340,7 +351,7 @@ def localize(
     doas_est = [doa_space[doas_est_idx[i]] for i in range(n_sources)]
     ang_spec_freqs = freqs[idx_freq_range]
     
-    return doas_est, doas_est_idx, ang_spec, ang_spec_freqs
+    return doas_est, doas_est_idx, ang_spec, ang_spec_freqs, est_alpha
 
 
 def convert_to_azimuth_inclination(doas_incl_az):
@@ -417,7 +428,7 @@ def process_experiment(
     src_doas_idx, source_type, sound_duration, 
     snr, noise_type, rt60, 
     loc_method, freq_range, sv_method, seed, nObs, sv_normalization, 
-    mc_seed=1, exp_name=None
+    mc_seed=1, exp_name=None,
     ):
     
     # set seed for reproducibility
@@ -426,7 +437,8 @@ def process_experiment(
     mixture, doas_ref, speech_files = make_data(src_doas_idx, source_type, sound_duration, snr, noise_type, rt60, mc_seed=mc_seed)
     n_sources = len(src_doas_idx)
     
-    doas_est, doas_est_idx, ang_spec, ang_spec_freqs = localize(mixture, loc_method, freq_range, n_sources, sv_method, seed, nObs, sv_normalization)
+    doas_est, doas_est_idx, ang_spec, ang_spec_freqs, est_alpha = localize(
+        mixture, loc_method, freq_range, n_sources, sv_method, seed, nObs, sv_normalization)
     
     if do_plot:
         plot_ang_spec(ang_spec, doas_est_idx, title='Estimated Ang Spec')
@@ -451,7 +463,7 @@ def process_experiment(
     logger.info(f"Ground truth DOAs: {doas_ref}")
     logger.info(f"Error: {error}")
     
-    return doas_est, doas_est_idx, error, doas_ref, doas_ref_idx, ang_spec, ang_spec_freqs, speech_files
+    return doas_est, doas_est_idx, error, doas_ref, doas_ref_idx, ang_spec, ang_spec_freqs, speech_files, est_alpha
 
 
 if __name__ == "__main__":
