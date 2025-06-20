@@ -35,7 +35,12 @@ from pprint import pprint
 import logging
 import parse
 
+from torchaudio.datasets import VCTK_092
+from torch.utils.data import DataLoader
+
+
 # # Set up logging
+# logging.basicConfig(level=logging.DEBUG)
 # logging.basicConfig(level=logging.INFO)
 logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
@@ -48,9 +53,14 @@ do_plot = False
 do_output_wav = False
 
 expertiment_folder = Path("./")
+
+# load datasets
 path_to_speech_data = expertiment_folder / "data/SmallTimit"
-path_to_resolved_models = expertiment_folder / "data/models" 
-    
+path_to_data = expertiment_folder / "data/"
+vctk_dataset = VCTK_092(path_to_data, download=True, mic_id='mic1')
+n_utterances = len(vctk_dataset)
+path_to_resolved_models = expertiment_folder / "data/models"
+
 
 results_dir = expertiment_folder / "results/"
 results_dir.mkdir(parents=True, exist_ok=True)
@@ -60,16 +70,19 @@ output_dir = expertiment_folder / "results/output"
 output_dir.mkdir(parents=True, exist_ok=True)
 
 ang_spec_methods = {
-    'alpha-2.0_beta-2_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=2.0, beta=2.0, eps=1e-3, n_iter=500),
-    'alpha-1.2_beta-2_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=1.2, beta=2.0, eps=1e-3, n_iter=500),
-    'alpha-1.2_beta-2_eps-1E-5_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=1.2, beta=2.0, eps=1e-5, n_iter=500),
-    'alpha-1.2_beta-1_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=1.2, beta=1.0, eps=1e-3, n_iter=500),
-    'alpha-1.2_beta-0_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=1.2, beta=0.0, eps=1e-3, n_iter=500),
-    'alpha-2.0_beta-1_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=2.0, beta=1.0, eps=1e-3, n_iter=500),
-    'alpha-1.6_beta-1_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=1.6, beta=1.0, eps=1e-3, n_iter=500),
-    'alpha-0.8_beta-1_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=0.8, beta=1.0, eps=1e-3, n_iter=500),
-    'alpha-0.4_beta-1_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=0.4, beta=1.0, eps=1e-3, n_iter=500),
-    'alpha-0.1_beta-1_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=0.1, beta=1.0, eps=1e-3, n_iter=500),
+    'alpha-2.0_beta-2_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=2.0, beta=2.0, eps=1e-3, n_iter=500, plot_cost=do_plot),
+    'alpha-1.2_beta-2_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=1.2, beta=2.0, eps=1e-3, n_iter=500, plot_cost=do_plot),
+    'alpha-1.2_beta-2_eps-1E-5_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=1.2, beta=2.0, eps=1e-5, n_iter=500, plot_cost=do_plot),
+    'alpha-1.2_beta-1_eps-1E-5_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=1.2, beta=1.0, eps=1e-5, n_iter=500, plot_cost=do_plot),
+    'alpha-1.2_beta-1_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=1.2, beta=1.0, eps=1e-3, n_iter=500, plot_cost=do_plot),
+    'alpha-1.2_beta-0_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=1.2, beta=0.0, eps=1e-3, n_iter=500, plot_cost=do_plot),
+    'alpha-2.0_beta-1_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=2.0, beta=1.0, eps=1e-3, n_iter=500, plot_cost=do_plot),
+    'alpha-1.6_beta-1_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=1.6, beta=1.0, eps=1e-3, n_iter=500, plot_cost=do_plot),
+    'alpha-0.8_beta-1_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=0.8, beta=1.0, eps=1e-3, n_iter=500, plot_cost=do_plot),
+    'alpha-0.4_beta-1_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=0.4, beta=1.0, eps=1e-3, n_iter=500, plot_cost=do_plot),
+    'alpha-0.1_beta-1_eps-1E-3_iter-500': lambda X, svect : alpha_stable(X, svect, alpha=0.1, beta=1.0, eps=1e-3, n_iter=500, plot_cost=do_plot),
+    'alpha-1.2_beta-1_eps-1E-3_iter-1000': lambda X, svect : alpha_stable(X, svect, alpha=1.2, beta=1.0, eps=1e-3, n_iter=1000, plot_cost=do_plot),
+    'alpha-1.2_beta-1_eps-1E-5_iter-1000': lambda X, svect : alpha_stable(X, svect, alpha=1.2, beta=1.0, eps=1e-5, n_iter=1000, plot_cost=do_plot),
     'music_s-1': lambda X, svect : music(X, svect, n_sources=1),
     'music_s-2': lambda X, svect : music(X, svect, n_sources=2),
     'music_s-3': lambda X, svect : music(X, svect, n_sources=3),
@@ -93,6 +106,8 @@ eusipco_names_to_exp_name = {
 sv_nObs_choice = [8, 16, 32, 64, 128]
 sv_seed_choice = [13, 42, 666]
 
+reference_full_sphere_steering_vectors = "ref_nObs-8_seed-13.pkl"
+
 
 parser = argparse.ArgumentParser(description='Sound Source Localization with NSteerer and AlphaStable')
 parser.add_argument('--sv-method', type=str, default='nf-subfreq', help='Steering vector interpolation method', choices=['nf', 'nf-gw' 'nn', 'sp', 'pinn', 'gp-steerer'])
@@ -109,7 +124,7 @@ def make_data(src_doas_idx, source_type, sound_duration, SNR, noise_type='awgn',
     file_name_data = f"doas-{src_doas_idx}_snr-{SNR}_noise-{noise_type}_reverb-{RT60}_mc-{mc_seed}"
     
     # # Load the ground truth data
-    path_to_model = path_to_resolved_models / f"ref_nObs-8_seed-13.pkl"
+    path_to_model = path_to_resolved_models / reference_full_sphere_steering_vectors
     resolved_sv_dict = load_resolved_svects(path_to_model) # dict(x, y, svect)
     nfft = int(resolved_sv_dict['nfft'])
     fs = int(resolved_sv_dict['fs'])
@@ -137,11 +152,10 @@ def make_data(src_doas_idx, source_type, sound_duration, SNR, noise_type='awgn',
         path_to_rirs = expertiment_folder / "data/directives_rirs_with_spear_rt60-{}.pkl".format(RT60)
         with open(path_to_rirs, 'rb') as f:
             rirs_dict = pickle.load(f)
-        azimuths = rirs_dict['azimuths']
+        # azimuths = rirs_dict['azimuths']
         spat_rirs = rirs_dict['rirs']
         svect_ref_time = rearrange(spat_rirs, 'chan doas time -> time doas chan')
         assert svect_ref_time.shape[2] == nChan, "Mismatch in the number of channels"
-        # do something with the rirs and svect_ref_time
     elif RT60 == -1:
         pass
     else:
@@ -152,14 +166,20 @@ def make_data(src_doas_idx, source_type, sound_duration, SNR, noise_type='awgn',
     # load speech signal
     # get the list of all the speech files
     if source_type == "speech":
-        speech_files = list(path_to_speech_data.glob("*.wav"))
         # randomly select n_sources speech files
-        speech_files = np.random.choice(speech_files, n_sources, replace=False)
+        sample_id = np.random.randint(0, n_utterances, n_sources)
         src_signals = []
-        for i, speech_file in enumerate(speech_files):
-            s, fs = librosa.load(speech_file, sr=fs, duration=sound_duration, mono=True, offset=0.5)
+        speech_files = []
+        for i in range(n_sources):
+            s, s_fs, transcript, speaker_id, utterance_id = vctk_dataset[sample_id[i]]
+            logger.info(f"Selected samples: {sample_id}, speaker_id: {speaker_id}, utterance_id: {utterance_id}")
+            s = s.numpy().squeeze()  # convert to numpy array
+            assert len(s.shape) == 1, "Speech signal should be mono"
+            speech_file = f'sample_-{sample_id[i]}-speaker-{speaker_id}_utterance-{utterance_id}'
+            assert s_fs == fs, "Mismatch in the sampling frequency of the speech signal"
             s = s / np.std(s)
             src_signals.append(s)
+            speech_files.append(speech_file)
     elif "alpha" in source_type:
         src_alpha = float(source_type.split("-")[1])
         size = (int(fs * sound_duration),)
@@ -177,8 +197,10 @@ def make_data(src_doas_idx, source_type, sound_duration, SNR, noise_type='awgn',
             s = s / np.std(s)
             src_signals.append(s)
         speech_files = [f'{i}' for i in range(n_sources)]
-    src_signals = np.array(src_signals)
-    logger.debug("src_signals shape: ", src_signals.shape)
+    min_len = min([len(s) for s in src_signals])
+    src_signals = np.array([src_signal[:min_len] for src_signal in src_signals])  # [nSources x nSamples]
+    logger.info(f"Source signals shape: {src_signals.shape}")
+    logger.info(f"src_signals shape: {src_signals.shape}")
     # check the the selected source are active
     assert np.all(np.std(src_signals, axis=-1) > 0), "Source signals are empty"
     
@@ -193,20 +215,21 @@ def make_data(src_doas_idx, source_type, sound_duration, SNR, noise_type='awgn',
         x.append(np.sum(np.array(xi), axis=0))
     mixture = np.array(x) # [nChan x nSamples]
     mixture = mixture[:,:len(s)] # [nChan x nSamples]
-    logger.debug("Mixture shape: ", mixture.shape)
+    logger.info(f"Mixture shape: {mixture.shape}")
 
     # add noise
     if noise_type == 'awgn':
         noise = np.random.randn(*mixture.shape)
     elif "alpha" in noise_type:
         noise_alpha = float(noise_type.split("-")[1])
+        logger.info(f"Adding noise with alpha={noise_alpha}")
         noise = levy_stable.rvs(alpha=noise_alpha, beta=0, loc=0, size=mixture.shape)
     else:
         raise ValueError(f"Unknown noise type {noise_type}")
     noise = noise / np.linalg.norm(noise) * np.linalg.norm(mixture) / 10**(SNR/20)
     mixture = mixture + noise # [nChan x nSamples]
-    logger.debug("Mixture shape: ", mixture.shape)
-    
+    logger.info(f"Mixture shape: {mixture.shape}")
+
     time_src = np.arange(src_signals.shape[1]) / fs
     time_mix = np.arange(mixture.shape[1]) / fs 
     if do_plot:
@@ -227,9 +250,9 @@ def make_data(src_doas_idx, source_type, sound_duration, SNR, noise_type='awgn',
         mixture_to_save = mixture / np.max(np.abs(mixture))
         sf.write(output_dir / f'{file_name_data}.wav', mixture_to_save.T, fs)
     
-    return mixture, doas_ref, speech_files
+    return mixture, doas_ref, speech_files, file_name_data
     
-    
+
 def plot_ang_spec(S:np.array, doas_est_idx:np.array, doas_ref:np.array=None, title=None):
     """
     S in [nDoas x nFreq]
@@ -237,7 +260,7 @@ def plot_ang_spec(S:np.array, doas_est_idx:np.array, doas_ref:np.array=None, tit
     """
     
     fig, axarr = plt.subplots(2,1, figsize=(6,3), sharex=True)
-    axarr[0].imshow(S.T, aspec='auto', origin='lower')
+    axarr[0].imshow(S.T, aspect='auto', origin='lower')
     if doas_ref is not None:
         for j in range(len(doas_ref)):
             axarr[0].axvline(doas_ref[j], color='r', linestyle='--', label=f'Doa GT {doas_ref[j]}')
@@ -319,7 +342,6 @@ def localize(
     
     X = X[:,:nFreq,:] # [nChan, nFreq, nFrames]
     
-        
     # Focus on a specific frequency range
     freqs_ = np.fft.fftfreq(nfft, 1/fs)[:nFreq]
     assert np.allclose(freqs, freqs_), "Mismatch in the frequency bins"
@@ -333,12 +355,13 @@ def localize(
     assert nChan == nChan_, "Mismatch in the number of channels"
     
     if 'alpha-X.X' in loc_method:
-        ang_spec = alpha_stable(X, svect, alpha=est_alpha, beta=1.0, eps=1e-3, n_iter=500) # [nDoas x nFreq]
+        ang_spec = alpha_stable(X, svect, alpha=est_alpha, beta=1.0, eps=1e-3, n_iter=500, plot_cost=True) # [nDoas x nFreq]
     else:
         ang_spec = ang_spec_methods[loc_method](X, svect) # [nDoas x nFreq]
     
     assert ang_spec.shape[0] == (nDoas), f"Expected first shape {(nDoas)}, got {ang_spec.shape[0]}"
-    
+    assert ang_spec.ndim == 2, f"Expected ang_spec to be 2D, got {ang_spec.ndim}D"
+
     # estimate source location, get the n_sources highest peaks
     ang_spec_poll = np.mean(ang_spec, axis=1) # pool over frequencies
     ang_spec_poll = ang_spec_poll / np.max(ang_spec_poll)
@@ -347,7 +370,7 @@ def localize(
         # it means that find peaks f
         # just take the the peak with a simple argmax
         doas_est_idx = np.argsort(-ang_spec_poll)[:n_sources]
-    logger.debug("Estimated DOAs: ", doas_est_idx)
+    logger.info(f"Estimated DOAs: {doas_est_idx}")
     doas_est = [doa_space[doas_est_idx[i]] for i in range(n_sources)]
     ang_spec_freqs = freqs[idx_freq_range]
     
@@ -415,7 +438,7 @@ def compute_metrics(doas_est, doas_ref):
         min_error = np.inf
         for perm in itertools.permutations(range(nDoas)):
             error = compute_angle_between(doas_est[list(perm)], doas_ref)
-            logger.debug("Permutation: ", perm, "Error: ", error.sum())
+            logger.info(f"Permutation: {perm}, Error: {np.rad2deg(error.mean())}")
             if error.sum() < min_error:
                 min_error = error.sum()
                 best_error = error
@@ -434,24 +457,28 @@ def process_experiment(
     # set seed for reproducibility
     np.random.seed(mc_seed)
     
-    mixture, doas_ref, speech_files = make_data(src_doas_idx, source_type, sound_duration, snr, noise_type, rt60, mc_seed=mc_seed)
+    mixture, doas_ref, speech_files, suffix_data \
+        = make_data(src_doas_idx, source_type, sound_duration, snr, noise_type, rt60, mc_seed=mc_seed)
     n_sources = len(src_doas_idx)
     
     doas_est, doas_est_idx, ang_spec, ang_spec_freqs, est_alpha = localize(
         mixture, loc_method, freq_range, n_sources, sv_method, seed, nObs, sv_normalization)
     
+    suffix_algo = loc_method
+    exp_name = f'{suffix_algo}_{suffix_data}'
+
+    logger.info(f">>> Running for: {loc_method} with {sv_method} and nObs={nObs}, seed={seed}")
+
     if do_plot:
         plot_ang_spec(ang_spec, doas_est_idx, title='Estimated Ang Spec')
         plt.savefig(figure_dir / f'{exp_name}_ang_spec_est.png')
         plt.close()
-    
-    logger.debug("Ground truth DOAs: ", doas_ref)
+
+
     error, doas_est, perm = compute_metrics(doas_est, doas_ref)
     doas_est_idx = [doas_est_idx[i] for i in perm]
-    logger.debug("Best permutation: ", doas_est)
-    logger.debug("Estimated DOAs: ", doas_est)
-    logger.debug("Error: ", error)
-    
+    logger.info(f"Best permutation: {perm}")
+
     # if not list, make it a list
     doas_ref = np.array(doas_ref).tolist()
     doas_est = np.array(doas_est).tolist()
@@ -459,9 +486,9 @@ def process_experiment(
     doas_ref_idx = np.array(src_doas_idx).tolist()
     error = np.array(error).tolist()
     
-    logger.info(f"Estimated DOAs: {doas_est}")
-    logger.info(f"Ground truth DOAs: {doas_ref}")
-    logger.info(f"Error: {error}")
+    logger.info(f"Estimated DOAs   : {np.rad2deg(doas_est)}")
+    logger.info(f"Ground truth DOAs: {np.rad2deg(doas_ref)}")
+    logger.info(f"<<<< Error: {np.rad2deg(error)}")
     
     return doas_est, doas_est_idx, error, doas_ref, doas_ref_idx, ang_spec, ang_spec_freqs, speech_files, est_alpha
 
@@ -469,20 +496,26 @@ def process_experiment(
 if __name__ == "__main__":
     args = parser.parse_args()
 
-    src_doas = [5, 40]
+    src_doas = [15, 45, 0, 5]
     source_type = 'speech'
-    sound_duration = 0.5
+    sound_duration = 2
     snr = -5
     noise_type = 'awgn'
     rt60 = 0.273
     
     loc_method = 'music_s-1'
-    freq_range = [200, 2000]
+    loc_method = 'srp_phat'
+    loc_method = 'alpha-1.2_beta-1_eps-1E-3_iter-1000'
+
+    freq_range = [100, 2000]
     
     sv_method = 'gp-steerer'
+    sv_method = 'ref'
     nObs = 8
     seed = 13
     sv_normalization = True
+
+    mc_seed = 25
 
     # Create a string for the file name
     process_experiment(
@@ -490,4 +523,7 @@ if __name__ == "__main__":
         snr, noise_type, rt60,
         loc_method, freq_range,
         sv_method, seed, nObs, sv_normalization,
+        mc_seed=mc_seed,
     )
+
+    logger.info("Experiment completed successfully.")
