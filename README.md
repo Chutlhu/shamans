@@ -11,7 +11,7 @@ and the code to reproduce the results in the paper
 # Dataset
 
 The following datasets are used in the paper:
-- for speech data: TIMIT dataset;
+- for speech data: VTCK 092 dataset;
 - pyroomacoustics was used to generate the spatial (with directivity) room impulse responses (RIRs) for the experiments;
 - SPEAR challenge data for the ATFs and ATF interpolation models, avalilable [here](https://drive.google.com/drive/folders/1TNzmW4RWqV4RMq-mVSH2hSedDv3HOtsU?usp=sharing).  
   Download all the files and put them in the `data/` folder
