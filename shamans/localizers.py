@@ -1,6 +1,11 @@
 import numpy as np
 import scipy
 from einops import rearrange
+import logging
+import matplotlib.pyplot as plt
+
+
+logger = logging.getLogger(__name__)
 
 tol = 1e-14
 
@@ -51,8 +56,8 @@ def srp_phat(X, svects, n_sources=None):
     X = X / np.abs(X)
     SCM = np.einsum('ift,Ift->fiI', X, np.conj(X)) / Tx
     SCM = SCM / np.trace(SCM, axis1=1, axis2=2)[:,None,None]
-    ang_spec = np.real(np.einsum('fji,fiI,fjI->jf', a.conj(), SCM, a))
-    return ang_spec
+    ang_spec_NF = np.real(np.einsum('fji,fiI,fjI->jf', a.conj(), SCM, a))
+    return ang_spec_NF
 
 
 def inv_wishart(X, svects, n_sources=1):
@@ -109,9 +114,10 @@ def LevyExp(svect, X, alpha=1.2):
     Ix, Fx, Tx = X.shape
     assert Is == Ix, "Mismatch in the number of microphones"
     assert Fs == Fx, "Mismatch in the number of frequency bins"
-    arg = np.mean(np.exp(1j * np.real(np.einsum('fji,ift->fjt', np.conj(svect), X)) / (2 ** (1 / alpha))), axis=-1)
-    phi = np.abs(arg)**2
-    return phi
+    arg_FJT = 1j * np.real(np.einsum('fji,ift->fjt', np.conj(svect), X)) / (2 ** (1 / alpha))
+    arg_FJ = np.mean(np.exp(arg_FJT), axis=-1)
+    phi_FJ = np.abs(arg_FJ)**2
+    return phi_FJ
 
 def compute_beta_div(SM, ind_fun, Psi, beta):
     X_ = Psi @ SM
@@ -119,35 +125,81 @@ def compute_beta_div(SM, ind_fun, Psi, beta):
     Gmin = Psi.T @ (X_**(beta - 2) * ind_fun)
     return (Gplus - Gmin).sum()
 
-def alpha_stable(X, svects, alpha=1.2, beta=0.0, eps=1e-3, n_iter=1000):
+def alpha_stable(X_IFT, svects, alpha=1.2, beta=0.0, eps=1e-3, n_iter=1000, plot_cost=False):
 
-    nChan, nFreq, nTime = X.shape
+    n_warmup = 20
+
+    nChan, nFreq, nTime = X_IFT.shape
     a = svects
     nFreq, nDoas, nChan = a.shape
-    X = X / np.abs(X) # PHAT normalization
-    
-    phi = LevyExp(a, X, alpha = alpha)
+
+    X_norm = X_IFT / np.linalg.norm(X_IFT, ord=1, axis=0, keepdims=True) # Normalize X
+#
+    phi = LevyExp(a, X_norm, alpha=alpha)
     ind_func = - np.log(phi) # [nFreq x nDoas]
     ind_func = rearrange(ind_func, 'f j -> (f j) 1')
     Psi = np.abs(np.einsum('fji,fJi->fjJ', a.conj(), a))**alpha # [nFreq x nDoas x nDoas]
     Psi = rearrange(Psi, 'f j J -> (f j) J')
     
-    SM = np.ones([nDoas, 1])
+    SM = srp_phat(X_IFT, a).mean(axis=1)[:, None]
+    SM = SM / np.max(SM)  # Normalize SM
+    assert SM.shape == (nDoas, 1), f"SM shape mismatch: {SM.shape} != {(nDoas, 1)}"
+
     
+    # plt.figure(figsize=(8, 6))
+    # plt.plot(SM.copy(), label=f'Iter {0}')
+    # plt.xlabel('DOA index')
+    # plt.ylabel('SM value')
+    # plt.legend()
+    # plt.grid()
+    # plt.savefig(f'./tmp/alpha_stable_iter_{0}.png')
+    # plt.close()
+
+    cost = []
+    SM_list = []
     for n in range(n_iter):
-        foo = Psi @ SM
-        num = Psi.T @ (foo**(beta - 2) * ind_func)
-        den = eps + Psi.T @ (foo**(beta - 1))
+        Psi_dot_SM = Psi @ SM
+        num = Psi.T @ (Psi_dot_SM**(beta - 2) * ind_func)
+        den = eps + Psi.T @ (Psi_dot_SM**(beta - 1))
         SM *= num / den
+        if n > n_warmup:
+            SM_list.append(SM.copy())
+            cost.append(compute_beta_div(SM, ind_func, Psi, beta))
+        # if n % 25 == 0:
+        #     plt.figure(figsize=(8, 6))
+        #     plt.plot(SM.copy(), label=f'Iter {n+1}')
+        #     plt.xlabel('DOA index')
+        #     plt.ylabel('SM value')
+        #     plt.legend()
+        #     plt.grid()
+        #     plt.savefig(f'./tmp/alpha_stable_iter_{n+1}.png')
+        #     plt.close()
+
+
+    best_cost_idx = np.argmin(cost)
+    SM = SM_list[best_cost_idx]
+    # SM = SM_list[-1]
+    # best_cost_idx = len(SM_list) - 1
     
+    logger.info(f'Alpha-stable method: alpha={alpha}, beta={beta}, eps={eps}, n_iter={n_iter}')
+    logger.info(f'--- best cost={cost[best_cost_idx]:.2f} at iteration {best_cost_idx}')
+
+    # plt.plot(cost)
+    # plt.xlabel('Iteration')
+    # plt.ylabel('Cost')
+    # plt.title(f'Alpha-stable method: alpha={alpha}, beta={beta}, eps={eps}, n_iter={n_iter}')
+    # plt.grid()
+    # plt.savefig('./tmp/alpha_stable_cost.png')
+    # plt.close()
+
     ang_spec = SM
+
     return ang_spec
 
 methods = {
     'alpha_stable' : alpha_stable,
     'music' : music,
     'srp_phat': srp_phat,
-    # 'srp': srp,
     'wishart' : wishart,
     'inv_wishart' : inv_wishart,
 }

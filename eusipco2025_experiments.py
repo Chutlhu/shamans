@@ -13,7 +13,6 @@ from pathlib import Path
 
 from shamans.main import process_experiment
 from shamans.utils.eval_utils import angular_difference
-from shamans.localizers import alpha_stable, music, srp_phat
 
 
 # Assumed to be defined/imported elsewhere:
@@ -22,8 +21,8 @@ sv_nObs_choice = [8, 16, 32, 64, 128]
 sv_seed_choice = [666]
 
 # Setup directories
-figure_dir = Path("./figures")
-output_dir = Path("./output")
+# figure_dir = Path("./figures")
+# output_dir = Path("./output")
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -80,9 +79,9 @@ def run_experiment_1(exp_id, results_dir, mc_seed=None):
     n_sources_choice = [1]
     source_type_choices = ['speech']
     snr_choices = np.arange(-15, 24, 3).tolist()
-    noise_type_choices = ['awgn']
+    noise_type_choices = ['awgn', 'alpha-1.2']
     sound_duration_choices = [1.0]
-    rt60_choices = [0.0, 0.123, 0.273]
+    rt60_choices = [0.273]
     if mc_seed is None:
         monte_carlo_run_choices = np.arange(10).tolist()  # multiple runs per setting
     else:
@@ -98,22 +97,26 @@ def run_experiment_1(exp_id, results_dir, mc_seed=None):
 
     # Steering vector model configurations
     sv_methods_choices = ['gp-steerer']
+    sv_nObs_choice = [32]
+    sv_seed_choice = [666]
+
     base_sv_models = [['ref', 8, 13], ['alg', 8, 13]]
     additional_sv_models = list(itertools.product(sv_methods_choices, sv_nObs_choice, sv_seed_choice))
     sv_model_choices = base_sv_models + additional_sv_models
 
     # Localization method settings
-    min_freq, max_freq = 200, 4000
+    min_freq, max_freq = 100, 4000
     freq_range = [min_freq, max_freq]
     ang_spec_methods_choices = [
         'alpha-X.X_beta-1_eps-1E-3_iter-500',
+        'alpha-1.2_beta-1_eps-1E-3_iter-500',
         'music_s-1',
         'srp_phat'
     ]
 
     # DOA grid settings
     doa_grid = np.arange(0, 360, 6)
-    doa_grid_idx = np.concatenate([np.arange(0, 25), np.arange(60-25, 60)])
+    doa_grid_idx = np.concatenate([np.arange(0, 20), np.arange(60-20, 60)])
 
     # Load previously saved results (if any)
     csv_filename = f"experiment_results_exp-{exp_id}_run-{mc_seed}.csv"
@@ -139,12 +142,13 @@ def run_experiment_1(exp_id, results_dir, mc_seed=None):
                     continue
 
                 # Run the experiment (assumes process_experiment is defined elsewhere)
-                doas_est, doas_est_idx, error, doas_ref, doas_ref_idx, ang_spec, ang_spec_freqs, speech_files, est_alpha = process_experiment(
-                    src_doas_idx, source_type, sound_duration, snr, noise_type, rt60,
-                    loc_method, freq_range,
-                    sv_method, seed, nObs, sv_normalization,
-                    mc_seed=mc_seed,
-                    exp_name=exp_name,
+                doas_est, doas_est_idx, error, doas_ref, doas_ref_idx, ang_spec, ang_spec_freqs, speech_files, est_alpha \
+                    = process_experiment(
+                        src_doas_idx, source_type, sound_duration, snr, noise_type, rt60,
+                        loc_method, freq_range,
+                        sv_method, seed, nObs, sv_normalization,
+                        mc_seed=mc_seed,
+                        exp_name=exp_name,
                 )
 
                 # Build results dictionary
@@ -219,337 +223,57 @@ def run_experiment_1(exp_id, results_dir, mc_seed=None):
 
 def run_experiment_2(exp_id, results_dir, mc_seed=None):
     """
-    Experiment 2: Localization robustness for multiple sources for different separation angles.
-    """
-    # min_separation_deg = 12
+    Experiment 2: Localize one source while varying the RT60
     
-    # max_number_of_sources = 7
-    # n_sources_choice = np.arange(1, max_number_of_sources + 1).tolist()
-    n_sources_choice = [3]
-    separation_angles = [6,12,18,24,30,36,42]
+    - Source: one source (speech)
+    - DOAs: chosen at random from a defined DOA grid
+    - SNR: 0
+    - RT60: from 0 to 0.666 seconds
+    """
+    # Hyperparameter space
+    n_sources_choice = [1]
     source_type_choices = ['speech']
-    snr_choices = [20]
-    noise_type_choices = ['awgn']
+    snr_choices = [10]
+    noise_type_choices = ['awgn', 'alpha-1.2']
     sound_duration_choices = [1.0]
-    rt60_choices = [0.0, 0.123, 0.273]
+    rt60_choices = [0.0, 0.123, 0.273, 0.516, 0.666, 0.953, 1.263]
     if mc_seed is None:
-        monte_carlo_run_choices = np.arange(10).tolist()
+        monte_carlo_run_choices = np.arange(10).tolist()  # multiple runs per setting
     else:
         monte_carlo_run_choices = [mc_seed]
 
     sv_normalization = True
 
-    data_settings = list(itertools.product(
-        n_sources_choice, separation_angles, source_type_choices, sound_duration_choices,
-        snr_choices, noise_type_choices, rt60_choices, monte_carlo_run_choices
-    ))
-
-    base_sv_models = [['ref', 8, 13], ['alg', 8, 13]]
-    additional_sv_models = list(itertools.product(['gp-steerer'], sv_nObs_choice, [666]))
-    sv_model_choices = base_sv_models + additional_sv_models
-
-    min_freq, max_freq = 200, 4000
-    freq_range = [min_freq, max_freq]
-    ang_spec_methods_choices = {
-        'alpha-X.X_beta-1_eps-1E-3_iter-500',
-        'music_s-3',
-        'srp_phat',
-    }
-
-    doa_grid = np.arange(0, 360, 6)
-    doa_grid_idx = np.arange(60)
-
-    csv_filename = f"experiment_results_exp-{exp_id}_run-{mc_seed}.csv"
-    results_df = load_results_csv(results_dir, csv_filename)
-    ang_spec_list = load_results_pkl(results_dir, csv_filename.replace(".csv", "_with_ang_specs.pkl"))
-    
-    counter_exp = 0
-
-    for setting in tqdm(data_settings, desc="Scene settings"):
-        n_sources, sep_angle, source_type, sound_duration, snr, noise_type, rt60, mc_seed = setting
-        np.random.seed(mc_seed)
-        s1_idx = np.random.choice(doa_grid_idx)
-        s2_idx = (s1_idx + sep_angle) % 60
-        s3_idx = (s2_idx + sep_angle) % 60
-        src_doas_idx = np.array([s1_idx, s2_idx, s3_idx]).tolist()
-        frame_id = f"nSrc-{n_sources}_doas-{src_doas_idx}_type-{source_type}-duration-{sound_duration}-snr-{snr}_noise-{noise_type}_reverb-{rt60}_mc-{mc_seed}"
-        date_str = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-
-        for loc_method in tqdm(ang_spec_methods_choices, leave=False, desc="Loc methods"):
-            for sv_method, nObs, seed in sv_model_choices:
-                method_id = f"{loc_method}_freqs-{freq_range}_{sv_method}_nObs-{nObs}_seed-{seed}_norm-{sv_normalization}"
-                exp_name = f"exp-{exp_id}_{frame_id}_{method_id}"
-
-                if not results_df.empty and results_df.query(f"exp_name == '{exp_name}'").shape[0] > 0:
-                    logger.warning(f"Experiment {exp_name} already run")
-                    continue
-
-                doas_est, doas_est_idx, error, doas_ref, doas_ref_idx, ang_spec, ang_spec_freqs, speech_files, est_alpha = process_experiment(
-                    src_doas_idx, source_type, sound_duration, snr, noise_type, rt60,
-                    loc_method, freq_range,
-                    sv_method, seed, nObs, sv_normalization,
-                    mc_seed=mc_seed,
-                    exp_name=exp_name,
-                )
-
-                records = {
-                    "exp_name": exp_name,
-                    "time": date_str,
-                    "record_id": [f's{i}' for i in range(n_sources)],
-                    "src_ids": list(range(n_sources)),
-                    "doas_est_idx": doas_est_idx,
-                    "doas_ref_idx": doas_ref_idx,
-                    "doas_ref_az": [d[1] for d in doas_ref],
-                    "doas_est_az": [d[1] for d in doas_est],
-                    "doas_ref_el": [d[0] for d in doas_ref],
-                    "doas_est_el": [d[0] for d in doas_est],
-                    "errors": error,
-                }
-                df_results = pd.DataFrame(records)
-
-                scene_params = {
-                    "record_id": [f's{i}' for i in range(n_sources)],
-                    "speech_files": speech_files,
-                    "frame_id": [frame_id] * n_sources,
-                    "target_doa": doas_ref,
-                    "n_sources": [n_sources] * n_sources,
-                    "sep_angle" : [sep_angle] * n_sources,
-                    "duration": [sound_duration] * n_sources,
-                    "snr": [snr] * n_sources,
-                    "noise_type": [noise_type] * n_sources,
-                    "rt60": [rt60] * n_sources,
-                    "mc_seed": [mc_seed] * n_sources,
-                }
-                df_scene = pd.DataFrame(scene_params)
-                df_results_scene = pd.merge(df_results, df_scene, on='record_id')
-
-                model_params = {
-                    "record_id": [f's{i}' for i in range(n_sources)],
-                    "method_id": [method_id] * n_sources,
-                    "loc_method": [loc_method] * n_sources,
-                    "freq_min": [freq_range[0]] * n_sources,
-                    "freq_max": [freq_range[1]] * n_sources,
-                    "sv_method": [sv_method] * n_sources,
-                    "nObs": [nObs] * n_sources,
-                    "seed": [seed] * n_sources,
-                    "sv_normalization": [sv_normalization] * n_sources,
-                }
-                df_model = pd.DataFrame(model_params)
-                df_full = pd.merge(df_results_scene, df_model, on='record_id')
-
-                results_df = pd.concat([results_df, df_full], ignore_index=True)
-
-                doa_freq_grid = np.stack(np.meshgrid(doa_grid, ang_spec_freqs, indexing='ij'), -1)
-                ang_spec_dict = {
-                    "frame_id": frame_id,
-                    "method_id": method_id,
-                    "loc_method": loc_method,
-                    "ang_spec_shape": ang_spec.shape,
-                    "doa_grid": doa_freq_grid[..., 0],
-                    "freq_grid": doa_freq_grid[..., 1],
-                    "ang_spec": ang_spec,
-                }
-                ang_spec_list.append(ang_spec_dict)
-
-                counter_exp += 1
-                if counter_exp % 20 == 0:
-                    save_results(results_df, ang_spec_list, results_dir, csv_filename)
-
-    if not results_df.empty:
-        save_results(results_df, ang_spec_list, results_dir, csv_filename)
-
-
-def run_experiment_3(exp_id, results_dir, mc_seed=None, use_estimated_alpha=False):
-    """
-    Experiment 3: Localization robustness for multiple sources.
-    
-    - Sources: from 1 up to 6 (speech)
-    - SNR: set to 20 dB
-    """
-    min_separation_deg = 12
-    
-    max_number_of_sources = 7
-    n_sources_choice = np.arange(5, max_number_of_sources + 1).tolist()
-    # n_sources_choice = [3]
-    source_type_choices = ['speech']
-    snr_choices = [20]
-    noise_type_choices = ['awgn']
-    sound_duration_choices = [1.0]
-    rt60_choices = [0.123]
-    if mc_seed is None:
-        monte_carlo_run_choices = np.arange(10).tolist()
-    else:
-        monte_carlo_run_choices = [mc_seed]
-
-    sv_normalization = True
-
+    # Create the grid of experiment settings
     data_settings = list(itertools.product(
         n_sources_choice, source_type_choices, sound_duration_choices,
         snr_choices, noise_type_choices, rt60_choices, monte_carlo_run_choices
     ))
 
+    # Steering vector model configurations
+    sv_methods_choices = ['gp-steerer']
     base_sv_models = [['ref', 8, 13], ['alg', 8, 13]]
-    additional_sv_models = list(itertools.product(['gp-steerer'], sv_nObs_choice, [666]))
+    additional_sv_models = list(itertools.product(sv_methods_choices, sv_nObs_choice, sv_seed_choice))
     sv_model_choices = base_sv_models + additional_sv_models
 
-    min_freq, max_freq = 200, 4000
+    # Localization method settings
+    min_freq, max_freq = 100, 4000
     freq_range = [min_freq, max_freq]
-    ang_spec_methods_choices = {
+    ang_spec_methods_choices = [
         'alpha-X.X_beta-1_eps-1E-3_iter-500',
-        'music_s-1',
-        'music_s-4',
-        'music_s-6',
-        'srp_phat',
-    }
-
-    doa_grid = np.arange(0, 360, 6)
-    doa_grid_idx = np.concatenate([np.arange(0, 25), np.arange(60-25, 60)])
-
-    csv_filename = f"experiment_results_exp-{exp_id}_run-{mc_seed}.csv"
-    results_df = load_results_csv(results_dir, csv_filename)
-    ang_spec_list = load_results_pkl(results_dir, csv_filename.replace(".csv", "_with_ang_specs.pkl"))
-    
-    counter_exp = 0
-
-    for setting in tqdm(data_settings, desc="Scene settings"):
-        n_sources, source_type, sound_duration, snr, noise_type, rt60, mc_seed = setting
-        np.random.seed(mc_seed)
-        src_doas_idx = sample_doa_with_min_separation(doa_grid_idx, n_sources, min_separation_deg, doa_grid)
-        frame_id = f"nSrc-{n_sources}_doas-{src_doas_idx}_type-{source_type}-duration-{sound_duration}-snr-{snr}_noise-{noise_type}_reverb-{rt60}_mc-{mc_seed}"
-        date_str = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-
-        for loc_method in tqdm(ang_spec_methods_choices, leave=False, desc="Loc methods"):
-            for sv_method, nObs, seed in sv_model_choices:
-                method_id = f"{loc_method}_freqs-{freq_range}_{sv_method}_nObs-{nObs}_seed-{seed}_norm-{sv_normalization}"
-                exp_name = f"exp-{exp_id}_{frame_id}_{method_id}"
-
-                if not results_df.empty and results_df.query(f"exp_name == '{exp_name}'").shape[0] > 0:
-                    logger.warning(f"Experiment {exp_name} already run")
-                    continue
-
-                doas_est, doas_est_idx, error, doas_ref, doas_ref_idx, ang_spec, ang_spec_freqs, speech_files, est_alpha = process_experiment(
-                    src_doas_idx, source_type, sound_duration, snr, noise_type, rt60,
-                    loc_method, freq_range,
-                    sv_method, seed, nObs, sv_normalization,
-                    mc_seed=mc_seed,
-                    exp_name=exp_name,
-                    use_estimated_alpha=use_estimated_alpha,
-                )
-
-                records = {
-                    "exp_name": exp_name,
-                    "time": date_str,
-                    "record_id": [f's{i}' for i in range(n_sources)],
-                    "num_srcs": n_sources,
-                    "src_ids": list(range(n_sources)),
-                    "doas_est_idx": doas_est_idx,
-                    "doas_ref_idx": doas_ref_idx,
-                    "doas_ref_az": [d[1] for d in doas_ref],
-                    "doas_est_az": [d[1] for d in doas_est],
-                    "doas_ref_el": [d[0] for d in doas_ref],
-                    "doas_est_el": [d[0] for d in doas_est],
-                    "errors": error,
-                }
-                df_results = pd.DataFrame(records)
-
-                scene_params = {
-                    "record_id": [f's{i}' for i in range(n_sources)],
-                    "speech_files": speech_files,
-                    "frame_id": [frame_id] * n_sources,
-                    "target_doa": doas_ref,
-                    "n_sources": [n_sources] * n_sources,
-                    "duration": [sound_duration] * n_sources,
-                    "snr": [snr] * n_sources,
-                    "noise_type": [noise_type] * n_sources,
-                    "rt60": [rt60] * n_sources,
-                    "mc_seed": [mc_seed] * n_sources,
-                }
-                df_scene = pd.DataFrame(scene_params)
-                df_results_scene = pd.merge(df_results, df_scene, on='record_id')
-
-                model_params = {
-                    "record_id": [f's{i}' for i in range(n_sources)],
-                    "method_id": [method_id] * n_sources,
-                    "loc_method": [loc_method] * n_sources,
-                    "freq_min": [freq_range[0]] * n_sources,
-                    "freq_max": [freq_range[1]] * n_sources,
-                    "sv_method": [sv_method] * n_sources,
-                    "nObs": [nObs] * n_sources,
-                    "seed": [seed] * n_sources,
-                    "sv_normalization": [sv_normalization] * n_sources,
-                }
-                df_model = pd.DataFrame(model_params)
-                df_full = pd.merge(df_results_scene, df_model, on='record_id')
-
-                results_df = pd.concat([results_df, df_full], ignore_index=True)
-
-                doa_freq_grid = np.stack(np.meshgrid(doa_grid, ang_spec_freqs, indexing='ij'), -1)
-                ang_spec_dict = {
-                    "frame_id": frame_id,
-                    "method_id": method_id,
-                    "loc_method": loc_method,
-                    "ang_spec_shape": ang_spec.shape,
-                    "doa_grid": doa_freq_grid[..., 0],
-                    "freq_grid": doa_freq_grid[..., 1],
-                    "ang_spec": ang_spec,
-                }
-                ang_spec_list.append(ang_spec_dict)
-
-                counter_exp += 1
-                if counter_exp % 20 == 0:
-                    save_results(results_df, ang_spec_list, results_dir, csv_filename)
-
-    if not results_df.empty:
-        save_results(results_df, ang_spec_list, results_dir, csv_filename)
-
-
-def run_experiment_4(exp_id, results_dir, mc_seed=None):
-    raise NotImplementedError("Experiment 4 is the same as Experiment 3.")
-
-
-def run_experiment_5(exp_id, results_dir, mc_seed=None):
-    
-    n_sources_choice = [3]
-    source_type_choices = [f'alpha-{a}' for a in ['0.1', '0.4', '0.8', '1.2', '1.6', '2.0']]
-    snr_choices = [20]
-    noise_type_choices = ['awgn']
-    sound_duration_choices = [1.0]
-    rt60_choices = [0.123]
-    
-    if mc_seed is None:
-        monte_carlo_run_choices = np.arange(10).tolist()
-    else:
-        monte_carlo_run_choices = [mc_seed]
-
-    sv_normalization = True
-
-    data_settings = list(itertools.product(
-        n_sources_choice, source_type_choices, sound_duration_choices,
-        snr_choices, noise_type_choices, rt60_choices, monte_carlo_run_choices
-    ))
-
-    base_sv_models = [['ref', 8, 13], ['alg', 8, 13]]
-    additional_sv_models = list(itertools.product(['gp-steerer'], sv_nObs_choice, [666]))
-    sv_model_choices = base_sv_models + additional_sv_models
-
-    min_freq, max_freq = 200, 4000
-    freq_range = [min_freq, max_freq]
-    ang_spec_methods_choices = {
-        'alpha-2.0_beta-1_eps-1E-3_iter-500',
-        'alpha-1.6_beta-1_eps-1E-3_iter-500',
         'alpha-1.2_beta-1_eps-1E-3_iter-500',
-        'alpha-0.8_beta-1_eps-1E-3_iter-500',
-        'alpha-0.4_beta-1_eps-1E-3_iter-500',
-        'alpha-0.1_beta-1_eps-1E-3_iter-500',
-    }
+        'music_s-1',
+        'srp_phat'
+    ]
 
+    # DOA grid settings
     doa_grid = np.arange(0, 360, 6)
-    doa_grid_idx = np.concatenate([np.arange(0, 25), np.arange(60-25, 60)])
+    doa_grid_idx = np.concatenate([np.arange(0, 20), np.arange(60-20, 60)])
 
+    # Load previously saved results (if any)
     csv_filename = f"experiment_results_exp-{exp_id}_run-{mc_seed}.csv"
     results_df = load_results_csv(results_dir, csv_filename)
     ang_spec_list = load_results_pkl(results_dir, csv_filename.replace(".csv", "_with_ang_specs.pkl"))
-    
     counter_exp = 0
 
     for setting in tqdm(data_settings, desc="Scene settings"):
@@ -564,25 +288,28 @@ def run_experiment_5(exp_id, results_dir, mc_seed=None):
                 method_id = f"{loc_method}_freqs-{freq_range}_{sv_method}_nObs-{nObs}_seed-{seed}_norm-{sv_normalization}"
                 exp_name = f"exp-{exp_id}_{frame_id}_{method_id}"
 
+                # Skip if experiment has already been run
                 if not results_df.empty and results_df.query(f"exp_name == '{exp_name}'").shape[0] > 0:
                     logger.warning(f"Experiment {exp_name} already run")
                     continue
 
-                doas_est, doas_est_idx, error, doas_ref, doas_ref_idx, ang_spec, ang_spec_freqs, speech_files, est_alpha = process_experiment(
-                    src_doas_idx, source_type, sound_duration, snr, noise_type, rt60,
-                    loc_method, freq_range,
-                    sv_method, seed, nObs, sv_normalization,
-                    mc_seed=mc_seed,
-                    exp_name=exp_name,
+                # Run the experiment (assumes process_experiment is defined elsewhere)
+                doas_est, doas_est_idx, error, doas_ref, doas_ref_idx, ang_spec, ang_spec_freqs, speech_files, est_alpha \
+                    = process_experiment(
+                        src_doas_idx, source_type, sound_duration, snr, noise_type, rt60,
+                        loc_method, freq_range,
+                        sv_method, seed, nObs, sv_normalization,
+                        mc_seed=mc_seed,
+                        exp_name=exp_name,
                 )
 
+                # Build results dictionary
                 records = {
                     "exp_name": exp_name,
                     "time": date_str,
                     "record_id": [f's{i}' for i in range(n_sources)],
                     "num_srcs": n_sources,
                     "src_ids": list(range(n_sources)),
-                    "est_alpha" : [est_alpha] * n_sources,
                     "doas_est_idx": doas_est_idx,
                     "doas_ref_idx": doas_ref_idx,
                     "doas_ref_az": [d[1] for d in doas_ref],
@@ -593,11 +320,11 @@ def run_experiment_5(exp_id, results_dir, mc_seed=None):
                 }
                 df_results = pd.DataFrame(records)
 
+                # Scene parameters
                 scene_params = {
                     "record_id": [f's{i}' for i in range(n_sources)],
                     "speech_files": speech_files,
                     "frame_id": [frame_id] * n_sources,
-                    "source_type": [source_type] * n_sources,
                     "target_doa": doas_ref,
                     "n_sources": [n_sources] * n_sources,
                     "duration": [sound_duration] * n_sources,
@@ -609,6 +336,7 @@ def run_experiment_5(exp_id, results_dir, mc_seed=None):
                 df_scene = pd.DataFrame(scene_params)
                 df_results_scene = pd.merge(df_results, df_scene, on='record_id')
 
+                # Model parameters
                 model_params = {
                     "record_id": [f's{i}' for i in range(n_sources)],
                     "method_id": [method_id] * n_sources,
@@ -625,6 +353,7 @@ def run_experiment_5(exp_id, results_dir, mc_seed=None):
 
                 results_df = pd.concat([results_df, df_full], ignore_index=True)
 
+                # Record angular spectrum results
                 doa_freq_grid = np.stack(np.meshgrid(doa_grid, ang_spec_freqs, indexing='ij'), -1)
                 ang_spec_dict = {
                     "frame_id": frame_id,
@@ -641,27 +370,168 @@ def run_experiment_5(exp_id, results_dir, mc_seed=None):
                 if counter_exp % 20 == 0:
                     save_results(results_df, ang_spec_list, results_dir, csv_filename)
 
-    if not results_df.empty:
-        save_results(results_df, ang_spec_list, results_dir, csv_filename)
-       
-       
-def run_experiment_6(exp_id, results_dir, mc_seed=None):
+    save_results(results_df, ang_spec_list, results_dir, csv_filename)
+
+
+# UNUSED IN EUSIPCO 2025
+# def run_experiment_2(exp_id, results_dir, mc_seed=None):
+#     """
+#     Experiment 2: Localization robustness for multiple sources for different separation angles.
+#     """
+#     # min_separation_deg = 12
+    
+#     # max_number_of_sources = 7
+#     # n_sources_choice = np.arange(1, max_number_of_sources + 1).tolist()
+#     n_sources_choice = [3]
+#     separation_angles = [6,12,18,24,30,36,42]
+#     source_type_choices = ['speech']
+#     snr_choices = [20]
+#     noise_type_choices = ['awgn']
+#     sound_duration_choices = [1.0]
+#     rt60_choices = [0.0, 0.123, 0.273]
+#     if mc_seed is None:
+#         monte_carlo_run_choices = np.arange(10).tolist()
+#     else:
+#         monte_carlo_run_choices = [mc_seed]
+
+#     sv_normalization = True
+
+#     data_settings = list(itertools.product(
+#         n_sources_choice, separation_angles, source_type_choices, sound_duration_choices,
+#         snr_choices, noise_type_choices, rt60_choices, monte_carlo_run_choices
+#     ))
+
+#     base_sv_models = [['ref', 8, 13], ['alg', 8, 13]]
+#     additional_sv_models = list(itertools.product(['gp-steerer'], sv_nObs_choice, [666]))
+#     sv_model_choices = base_sv_models + additional_sv_models
+
+#     min_freq, max_freq = 200, 4000
+#     freq_range = [min_freq, max_freq]
+#     ang_spec_methods_choices = {
+#         'alpha-X.X_beta-1_eps-1E-3_iter-500',
+#         'music_s-3',
+#         'srp_phat',
+#     }
+
+#     doa_grid = np.arange(0, 360, 6)
+#     doa_grid_idx = np.arange(60)
+
+#     csv_filename = f"experiment_results_exp-{exp_id}_run-{mc_seed}.csv"
+#     results_df = load_results_csv(results_dir, csv_filename)
+#     ang_spec_list = load_results_pkl(results_dir, csv_filename.replace(".csv", "_with_ang_specs.pkl"))
+    
+#     counter_exp = 0
+
+#     for setting in tqdm(data_settings, desc="Scene settings"):
+#         n_sources, sep_angle, source_type, sound_duration, snr, noise_type, rt60, mc_seed = setting
+#         np.random.seed(mc_seed)
+#         s1_idx = np.random.choice(doa_grid_idx)
+#         s2_idx = (s1_idx + sep_angle) % 60
+#         s3_idx = (s2_idx + sep_angle) % 60
+#         src_doas_idx = np.array([s1_idx, s2_idx, s3_idx]).tolist()
+#         frame_id = f"nSrc-{n_sources}_doas-{src_doas_idx}_type-{source_type}-duration-{sound_duration}-snr-{snr}_noise-{noise_type}_reverb-{rt60}_mc-{mc_seed}"
+#         date_str = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+
+#         for loc_method in tqdm(ang_spec_methods_choices, leave=False, desc="Loc methods"):
+#             for sv_method, nObs, seed in sv_model_choices:
+#                 method_id = f"{loc_method}_freqs-{freq_range}_{sv_method}_nObs-{nObs}_seed-{seed}_norm-{sv_normalization}"
+#                 exp_name = f"exp-{exp_id}_{frame_id}_{method_id}"
+
+#                 if not results_df.empty and results_df.query(f"exp_name == '{exp_name}'").shape[0] > 0:
+#                     logger.warning(f"Experiment {exp_name} already run")
+#                     continue
+
+#                 doas_est, doas_est_idx, error, doas_ref, doas_ref_idx, ang_spec, ang_spec_freqs, speech_files, est_alpha = process_experiment(
+#                     src_doas_idx, source_type, sound_duration, snr, noise_type, rt60,
+#                     loc_method, freq_range,
+#                     sv_method, seed, nObs, sv_normalization,
+#                     mc_seed=mc_seed,
+#                     exp_name=exp_name,
+#                 )
+
+#                 records = {
+#                     "exp_name": exp_name,
+#                     "time": date_str,
+#                     "record_id": [f's{i}' for i in range(n_sources)],
+#                     "src_ids": list(range(n_sources)),
+#                     "doas_est_idx": doas_est_idx,
+#                     "doas_ref_idx": doas_ref_idx,
+#                     "doas_ref_az": [d[1] for d in doas_ref],
+#                     "doas_est_az": [d[1] for d in doas_est],
+#                     "doas_ref_el": [d[0] for d in doas_ref],
+#                     "doas_est_el": [d[0] for d in doas_est],
+#                     "errors": error,
+#                 }
+#                 df_results = pd.DataFrame(records)
+
+#                 scene_params = {
+#                     "record_id": [f's{i}' for i in range(n_sources)],
+#                     "speech_files": speech_files,
+#                     "frame_id": [frame_id] * n_sources,
+#                     "target_doa": doas_ref,
+#                     "n_sources": [n_sources] * n_sources,
+#                     "sep_angle" : [sep_angle] * n_sources,
+#                     "duration": [sound_duration] * n_sources,
+#                     "snr": [snr] * n_sources,
+#                     "noise_type": [noise_type] * n_sources,
+#                     "rt60": [rt60] * n_sources,
+#                     "mc_seed": [mc_seed] * n_sources,
+#                 }
+#                 df_scene = pd.DataFrame(scene_params)
+#                 df_results_scene = pd.merge(df_results, df_scene, on='record_id')
+
+#                 model_params = {
+#                     "record_id": [f's{i}' for i in range(n_sources)],
+#                     "method_id": [method_id] * n_sources,
+#                     "loc_method": [loc_method] * n_sources,
+#                     "freq_min": [freq_range[0]] * n_sources,
+#                     "freq_max": [freq_range[1]] * n_sources,
+#                     "sv_method": [sv_method] * n_sources,
+#                     "nObs": [nObs] * n_sources,
+#                     "seed": [seed] * n_sources,
+#                     "sv_normalization": [sv_normalization] * n_sources,
+#                 }
+#                 df_model = pd.DataFrame(model_params)
+#                 df_full = pd.merge(df_results_scene, df_model, on='record_id')
+
+#                 results_df = pd.concat([results_df, df_full], ignore_index=True)
+
+#                 doa_freq_grid = np.stack(np.meshgrid(doa_grid, ang_spec_freqs, indexing='ij'), -1)
+#                 ang_spec_dict = {
+#                     "frame_id": frame_id,
+#                     "method_id": method_id,
+#                     "loc_method": loc_method,
+#                     "ang_spec_shape": ang_spec.shape,
+#                     "doa_grid": doa_freq_grid[..., 0],
+#                     "freq_grid": doa_freq_grid[..., 1],
+#                     "ang_spec": ang_spec,
+#                 }
+#                 ang_spec_list.append(ang_spec_dict)
+
+#                 counter_exp += 1
+#                 if counter_exp % 20 == 0:
+#                     save_results(results_df, ang_spec_list, results_dir, csv_filename)
+
+#     if not results_df.empty:
+#         save_results(results_df, ang_spec_list, results_dir, csv_filename)
+
+
+def run_experiment_3(exp_id, results_dir, mc_seed=None):
     """
     Experiment 3: Localization robustness for multiple sources.
     
     - Sources: from 1 up to 6 (speech)
     - SNR: set to 20 dB
     """
-    use_estimated_alpha = True
-    
     min_separation_deg = 12
     
-    n_sources_choice = [4,7]
+    n_sources_choice = [4]
     source_type_choices = ['speech']
     snr_choices = [20]
     noise_type_choices = ['awgn']
     sound_duration_choices = [1.0]
-    rt60_choices = [0.0, 0.123, 0.273]
+    rt60_choices = [0.273]
+
     if mc_seed is None:
         monte_carlo_run_choices = np.arange(10).tolist()
     else:
@@ -674,19 +544,22 @@ def run_experiment_6(exp_id, results_dir, mc_seed=None):
         snr_choices, noise_type_choices, rt60_choices, monte_carlo_run_choices
     ))
 
+    sv_methods_choices = ['gp-steerer']
+    sv_nObs_choice = [8, 16, 32, 64, 128]
+    sv_seed_choice = [666]
+
     base_sv_models = [['ref', 8, 13], ['alg', 8, 13]]
-    additional_sv_models = list(itertools.product(['gp-steerer'], sv_nObs_choice, [666]))
+    additional_sv_models = list(itertools.product(
+        sv_methods_choices, sv_nObs_choice, sv_seed_choice))
     sv_model_choices = base_sv_models + additional_sv_models
 
     min_freq, max_freq = 200, 4000
     freq_range = [min_freq, max_freq]
     ang_spec_methods_choices = {
-        'alpha-1.2_beta-1_eps-1E-3_iter-500',
         'alpha-X.X_beta-1_eps-1E-3_iter-500',
-        'alpha-2.0_beta-1_eps-1E-3_iter-500',
+        'alpha-1.2_beta-1_eps-1E-3_iter-500',
         'music_s-1',
-        'music_s-5',
-        'music_s-6',
+        'music_s-4',
         'srp_phat',
     }
 
@@ -787,8 +660,439 @@ def run_experiment_6(exp_id, results_dir, mc_seed=None):
                     save_results(results_df, ang_spec_list, results_dir, csv_filename)
 
     if not results_df.empty:
-        save_results(results_df, ang_spec_list, results_dir, csv_filename) 
+        save_results(results_df, ang_spec_list, results_dir, csv_filename)
+
+
+def run_experiment_4(exp_id, results_dir, mc_seed=None, use_estimated_alpha=False):
+    """
+    Experiment 3: Localization robustness for multiple sources.
     
+    - Sources: from 1 up to 6 (speech)
+    - SNR: set to 20 dB
+    """
+    min_separation_deg = 12
+    
+    max_number_of_sources = 7
+    n_sources_choice = np.arange(1, max_number_of_sources + 1).tolist()
+    source_type_choices = ['speech']
+    snr_choices = [20]
+    noise_type_choices = ['awgn']
+    sound_duration_choices = [1.0]
+    rt60_choices = [0.273]
+    if mc_seed is None:
+        monte_carlo_run_choices = np.arange(10).tolist()
+    else:
+        monte_carlo_run_choices = [mc_seed]
+
+    sv_normalization = True
+
+    data_settings = list(itertools.product(
+        n_sources_choice, source_type_choices, sound_duration_choices,
+        snr_choices, noise_type_choices, rt60_choices, monte_carlo_run_choices
+    ))
+
+    base_sv_models = [['ref', 8, 13], ['alg', 8, 13]]
+    additional_sv_models = [['gp-steerer', 32, 666]]
+    sv_model_choices = base_sv_models + additional_sv_models
+    print(f"Steering vector models: {sv_model_choices}")
+
+    min_freq, max_freq = 200, 4000
+    freq_range = [min_freq, max_freq]
+    ang_spec_methods_choices = {
+        'alpha-X.X_beta-1_eps-1E-3_iter-500',
+        'music_s-1',
+        'music_s-4',
+        'srp_phat',
+    }
+
+    doa_grid = np.arange(0, 360, 6)
+    doa_grid_idx = np.concatenate([np.arange(0, 25), np.arange(60-25, 60)])
+
+    csv_filename = f"experiment_results_exp-{exp_id}_run-{mc_seed}.csv"
+    results_df = load_results_csv(results_dir, csv_filename)
+    ang_spec_list = load_results_pkl(results_dir, csv_filename.replace(".csv", "_with_ang_specs.pkl"))
+    
+    counter_exp = 0
+
+    for setting in tqdm(data_settings, desc="Scene settings"):
+        n_sources, source_type, sound_duration, snr, noise_type, rt60, mc_seed = setting
+        np.random.seed(mc_seed)
+        src_doas_idx = sample_doa_with_min_separation(doa_grid_idx, n_sources, min_separation_deg, doa_grid)
+        frame_id = f"nSrc-{n_sources}_doas-{src_doas_idx}_type-{source_type}-duration-{sound_duration}-snr-{snr}_noise-{noise_type}_reverb-{rt60}_mc-{mc_seed}"
+        date_str = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+
+        for loc_method in tqdm(ang_spec_methods_choices, leave=False, desc="Loc methods"):
+            for sv_method, nObs, seed in sv_model_choices:
+                method_id = f"{loc_method}_freqs-{freq_range}_{sv_method}_nObs-{nObs}_seed-{seed}_norm-{sv_normalization}"
+                exp_name = f"exp-{exp_id}_{frame_id}_{method_id}"
+
+                if not results_df.empty and results_df.query(f"exp_name == '{exp_name}'").shape[0] > 0:
+                    logger.warning(f"Experiment {exp_name} already run")
+                    continue
+
+                doas_est, doas_est_idx, error, doas_ref, doas_ref_idx, ang_spec, ang_spec_freqs, speech_files, est_alpha = process_experiment(
+                    src_doas_idx, source_type, sound_duration, snr, noise_type, rt60,
+                    loc_method, freq_range,
+                    sv_method, seed, nObs, sv_normalization,
+                    mc_seed=mc_seed,
+                    exp_name=exp_name,
+                )
+
+                records = {
+                    "exp_name": exp_name,
+                    "time": date_str,
+                    "record_id": [f's{i}' for i in range(n_sources)],
+                    "num_srcs": n_sources,
+                    "src_ids": list(range(n_sources)),
+                    "doas_est_idx": doas_est_idx,
+                    "doas_ref_idx": doas_ref_idx,
+                    "doas_ref_az": [d[1] for d in doas_ref],
+                    "doas_est_az": [d[1] for d in doas_est],
+                    "doas_ref_el": [d[0] for d in doas_ref],
+                    "doas_est_el": [d[0] for d in doas_est],
+                    "errors": error,
+                }
+                df_results = pd.DataFrame(records)
+
+                scene_params = {
+                    "record_id": [f's{i}' for i in range(n_sources)],
+                    "speech_files": speech_files,
+                    "frame_id": [frame_id] * n_sources,
+                    "target_doa": doas_ref,
+                    "n_sources": [n_sources] * n_sources,
+                    "duration": [sound_duration] * n_sources,
+                    "snr": [snr] * n_sources,
+                    "noise_type": [noise_type] * n_sources,
+                    "rt60": [rt60] * n_sources,
+                    "mc_seed": [mc_seed] * n_sources,
+                }
+                df_scene = pd.DataFrame(scene_params)
+                df_results_scene = pd.merge(df_results, df_scene, on='record_id')
+
+                model_params = {
+                    "record_id": [f's{i}' for i in range(n_sources)],
+                    "method_id": [method_id] * n_sources,
+                    "loc_method": [loc_method] * n_sources,
+                    "freq_min": [freq_range[0]] * n_sources,
+                    "freq_max": [freq_range[1]] * n_sources,
+                    "sv_method": [sv_method] * n_sources,
+                    "nObs": [nObs] * n_sources,
+                    "seed": [seed] * n_sources,
+                    "sv_normalization": [sv_normalization] * n_sources,
+                }
+                df_model = pd.DataFrame(model_params)
+                df_full = pd.merge(df_results_scene, df_model, on='record_id')
+
+                results_df = pd.concat([results_df, df_full], ignore_index=True)
+
+                doa_freq_grid = np.stack(np.meshgrid(doa_grid, ang_spec_freqs, indexing='ij'), -1)
+                ang_spec_dict = {
+                    "frame_id": frame_id,
+                    "method_id": method_id,
+                    "loc_method": loc_method,
+                    "ang_spec_shape": ang_spec.shape,
+                    "doa_grid": doa_freq_grid[..., 0],
+                    "freq_grid": doa_freq_grid[..., 1],
+                    "ang_spec": ang_spec,
+                }
+                ang_spec_list.append(ang_spec_dict)
+
+                counter_exp += 1
+                if counter_exp % 20 == 0:
+                    save_results(results_df, ang_spec_list, results_dir, csv_filename)
+
+    if not results_df.empty:
+        save_results(results_df, ang_spec_list, results_dir, csv_filename)
+
+
+# UNUSED IN EUSIPCO 2025
+# def run_experiment_4(exp_id, results_dir, mc_seed=None):
+#     raise NotImplementedError("Experiment 4 is the same as Experiment 3.")
+
+# UNUSED IN EUSIPCO 2025
+# def run_experiment_5(exp_id, results_dir, mc_seed=None):
+    
+#     n_sources_choice = [3]
+#     source_type_choices = [f'alpha-{a}' for a in ['0.1', '0.4', '0.8', '1.2', '1.6', '2.0']]
+#     snr_choices = [20]
+#     noise_type_choices = ['awgn']
+#     sound_duration_choices = [1.0]
+#     rt60_choices = [0.123]
+    
+#     if mc_seed is None:
+#         monte_carlo_run_choices = np.arange(10).tolist()
+#     else:
+#         monte_carlo_run_choices = [mc_seed]
+
+#     sv_normalization = True
+
+#     data_settings = list(itertools.product(
+#         n_sources_choice, source_type_choices, sound_duration_choices,
+#         snr_choices, noise_type_choices, rt60_choices, monte_carlo_run_choices
+#     ))
+
+#     base_sv_models = [['ref', 8, 13], ['alg', 8, 13]]
+#     additional_sv_models = list(itertools.product(['gp-steerer'], sv_nObs_choice, [666]))
+#     sv_model_choices = base_sv_models + additional_sv_models
+
+#     min_freq, max_freq = 200, 4000
+#     freq_range = [min_freq, max_freq]
+#     ang_spec_methods_choices = {
+#         'alpha-2.0_beta-1_eps-1E-3_iter-500',
+#         'alpha-1.6_beta-1_eps-1E-3_iter-500',
+#         'alpha-1.2_beta-1_eps-1E-3_iter-500',
+#         'alpha-0.8_beta-1_eps-1E-3_iter-500',
+#         'alpha-0.4_beta-1_eps-1E-3_iter-500',
+#         'alpha-0.1_beta-1_eps-1E-3_iter-500',
+#     }
+
+#     doa_grid = np.arange(0, 360, 6)
+#     doa_grid_idx = np.concatenate([np.arange(0, 25), np.arange(60-25, 60)])
+
+#     csv_filename = f"experiment_results_exp-{exp_id}_run-{mc_seed}.csv"
+#     results_df = load_results_csv(results_dir, csv_filename)
+#     ang_spec_list = load_results_pkl(results_dir, csv_filename.replace(".csv", "_with_ang_specs.pkl"))
+    
+#     counter_exp = 0
+
+#     for setting in tqdm(data_settings, desc="Scene settings"):
+#         n_sources, source_type, sound_duration, snr, noise_type, rt60, mc_seed = setting
+#         np.random.seed(mc_seed)
+#         src_doas_idx = np.random.choice(doa_grid_idx, n_sources, replace=False)
+#         frame_id = f"nSrc-{n_sources}_doas-{src_doas_idx}_type-{source_type}-duration-{sound_duration}-snr-{snr}_noise-{noise_type}_reverb-{rt60}_mc-{mc_seed}"
+#         date_str = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+
+#         for loc_method in tqdm(ang_spec_methods_choices, leave=False, desc="Loc methods"):
+#             for sv_method, nObs, seed in sv_model_choices:
+#                 method_id = f"{loc_method}_freqs-{freq_range}_{sv_method}_nObs-{nObs}_seed-{seed}_norm-{sv_normalization}"
+#                 exp_name = f"exp-{exp_id}_{frame_id}_{method_id}"
+
+#                 if not results_df.empty and results_df.query(f"exp_name == '{exp_name}'").shape[0] > 0:
+#                     logger.warning(f"Experiment {exp_name} already run")
+#                     continue
+
+#                 doas_est, doas_est_idx, error, doas_ref, doas_ref_idx, ang_spec, ang_spec_freqs, speech_files, est_alpha = process_experiment(
+#                     src_doas_idx, source_type, sound_duration, snr, noise_type, rt60,
+#                     loc_method, freq_range,
+#                     sv_method, seed, nObs, sv_normalization,
+#                     mc_seed=mc_seed,
+#                     exp_name=exp_name,
+#                 )
+
+#                 records = {
+#                     "exp_name": exp_name,
+#                     "time": date_str,
+#                     "record_id": [f's{i}' for i in range(n_sources)],
+#                     "num_srcs": n_sources,
+#                     "src_ids": list(range(n_sources)),
+#                     "est_alpha" : [est_alpha] * n_sources,
+#                     "doas_est_idx": doas_est_idx,
+#                     "doas_ref_idx": doas_ref_idx,
+#                     "doas_ref_az": [d[1] for d in doas_ref],
+#                     "doas_est_az": [d[1] for d in doas_est],
+#                     "doas_ref_el": [d[0] for d in doas_ref],
+#                     "doas_est_el": [d[0] for d in doas_est],
+#                     "errors": error,
+#                 }
+#                 df_results = pd.DataFrame(records)
+
+#                 scene_params = {
+#                     "record_id": [f's{i}' for i in range(n_sources)],
+#                     "speech_files": speech_files,
+#                     "frame_id": [frame_id] * n_sources,
+#                     "source_type": [source_type] * n_sources,
+#                     "target_doa": doas_ref,
+#                     "n_sources": [n_sources] * n_sources,
+#                     "duration": [sound_duration] * n_sources,
+#                     "snr": [snr] * n_sources,
+#                     "noise_type": [noise_type] * n_sources,
+#                     "rt60": [rt60] * n_sources,
+#                     "mc_seed": [mc_seed] * n_sources,
+#                 }
+#                 df_scene = pd.DataFrame(scene_params)
+#                 df_results_scene = pd.merge(df_results, df_scene, on='record_id')
+
+#                 model_params = {
+#                     "record_id": [f's{i}' for i in range(n_sources)],
+#                     "method_id": [method_id] * n_sources,
+#                     "loc_method": [loc_method] * n_sources,
+#                     "freq_min": [freq_range[0]] * n_sources,
+#                     "freq_max": [freq_range[1]] * n_sources,
+#                     "sv_method": [sv_method] * n_sources,
+#                     "nObs": [nObs] * n_sources,
+#                     "seed": [seed] * n_sources,
+#                     "sv_normalization": [sv_normalization] * n_sources,
+#                 }
+#                 df_model = pd.DataFrame(model_params)
+#                 df_full = pd.merge(df_results_scene, df_model, on='record_id')
+
+#                 results_df = pd.concat([results_df, df_full], ignore_index=True)
+
+#                 doa_freq_grid = np.stack(np.meshgrid(doa_grid, ang_spec_freqs, indexing='ij'), -1)
+#                 ang_spec_dict = {
+#                     "frame_id": frame_id,
+#                     "method_id": method_id,
+#                     "loc_method": loc_method,
+#                     "ang_spec_shape": ang_spec.shape,
+#                     "doa_grid": doa_freq_grid[..., 0],
+#                     "freq_grid": doa_freq_grid[..., 1],
+#                     "ang_spec": ang_spec,
+#                 }
+#                 ang_spec_list.append(ang_spec_dict)
+
+#                 counter_exp += 1
+#                 if counter_exp % 20 == 0:
+#                     save_results(results_df, ang_spec_list, results_dir, csv_filename)
+
+#     if not results_df.empty:
+#         save_results(results_df, ang_spec_list, results_dir, csv_filename)
+
+# UNUSED IN EUSIPCO 2025
+# def run_experiment_6(exp_id, results_dir, mc_seed=None):
+#     """
+#     Experiment 3: Localization robustness for multiple sources.
+    
+#     - Sources: from 1 up to 6 (speech)
+#     - SNR: set to 20 dB
+#     """
+#     use_estimated_alpha = True
+    
+#     min_separation_deg = 12
+    
+#     n_sources_choice = [4,7]
+#     source_type_choices = ['speech']
+#     snr_choices = [20]
+#     noise_type_choices = ['awgn']
+#     sound_duration_choices = [1.0]
+#     rt60_choices = [0.0, 0.123, 0.273]
+#     if mc_seed is None:
+#         monte_carlo_run_choices = np.arange(10).tolist()
+#     else:
+#         monte_carlo_run_choices = [mc_seed]
+
+#     sv_normalization = True
+
+#     data_settings = list(itertools.product(
+#         n_sources_choice, source_type_choices, sound_duration_choices,
+#         snr_choices, noise_type_choices, rt60_choices, monte_carlo_run_choices
+#     ))
+
+#     base_sv_models = [['ref', 8, 13], ['alg', 8, 13]]
+#     additional_sv_models = list(itertools.product(['gp-steerer'], sv_nObs_choice, [666]))
+#     sv_model_choices = base_sv_models + additional_sv_models
+
+#     min_freq, max_freq = 200, 4000
+#     freq_range = [min_freq, max_freq]
+#     ang_spec_methods_choices = {
+#         'alpha-1.2_beta-1_eps-1E-3_iter-500',
+#         'alpha-X.X_beta-1_eps-1E-3_iter-500',
+#         'alpha-2.0_beta-1_eps-1E-3_iter-500',
+#         'music_s-1',
+#         'music_s-5',
+#         'music_s-6',
+#         'srp_phat',
+#     }
+
+#     doa_grid = np.arange(0, 360, 6)
+#     doa_grid_idx = np.concatenate([np.arange(0, 25), np.arange(60-25, 60)])
+
+#     csv_filename = f"experiment_results_exp-{exp_id}_run-{mc_seed}.csv"
+#     results_df = load_results_csv(results_dir, csv_filename)
+#     ang_spec_list = load_results_pkl(results_dir, csv_filename.replace(".csv", "_with_ang_specs.pkl"))
+    
+#     counter_exp = 0
+
+#     for setting in tqdm(data_settings, desc="Scene settings"):
+#         n_sources, source_type, sound_duration, snr, noise_type, rt60, mc_seed = setting
+#         np.random.seed(mc_seed)
+#         src_doas_idx = sample_doa_with_min_separation(doa_grid_idx, n_sources, min_separation_deg, doa_grid)
+#         frame_id = f"nSrc-{n_sources}_doas-{src_doas_idx}_type-{source_type}-duration-{sound_duration}-snr-{snr}_noise-{noise_type}_reverb-{rt60}_mc-{mc_seed}"
+#         date_str = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+
+#         for loc_method in tqdm(ang_spec_methods_choices, leave=False, desc="Loc methods"):
+#             for sv_method, nObs, seed in sv_model_choices:
+#                 method_id = f"{loc_method}_freqs-{freq_range}_{sv_method}_nObs-{nObs}_seed-{seed}_norm-{sv_normalization}"
+#                 exp_name = f"exp-{exp_id}_{frame_id}_{method_id}"
+
+#                 if not results_df.empty and results_df.query(f"exp_name == '{exp_name}'").shape[0] > 0:
+#                     logger.warning(f"Experiment {exp_name} already run")
+#                     continue
+
+#                 doas_est, doas_est_idx, error, doas_ref, doas_ref_idx, ang_spec, ang_spec_freqs, speech_files, est_alpha = process_experiment(
+#                     src_doas_idx, source_type, sound_duration, snr, noise_type, rt60,
+#                     loc_method, freq_range,
+#                     sv_method, seed, nObs, sv_normalization,
+#                     mc_seed=mc_seed,
+#                     exp_name=exp_name,
+#                 )
+
+#                 records = {
+#                     "exp_name": exp_name,
+#                     "time": date_str,
+#                     "record_id": [f's{i}' for i in range(n_sources)],
+#                     "num_srcs": n_sources,
+#                     "src_ids": list(range(n_sources)),
+#                     "doas_est_idx": doas_est_idx,
+#                     "doas_ref_idx": doas_ref_idx,
+#                     "doas_ref_az": [d[1] for d in doas_ref],
+#                     "doas_est_az": [d[1] for d in doas_est],
+#                     "doas_ref_el": [d[0] for d in doas_ref],
+#                     "doas_est_el": [d[0] for d in doas_est],
+#                     "errors": error,
+#                 }
+#                 df_results = pd.DataFrame(records)
+
+#                 scene_params = {
+#                     "record_id": [f's{i}' for i in range(n_sources)],
+#                     "speech_files": speech_files,
+#                     "frame_id": [frame_id] * n_sources,
+#                     "target_doa": doas_ref,
+#                     "n_sources": [n_sources] * n_sources,
+#                     "duration": [sound_duration] * n_sources,
+#                     "snr": [snr] * n_sources,
+#                     "noise_type": [noise_type] * n_sources,
+#                     "rt60": [rt60] * n_sources,
+#                     "mc_seed": [mc_seed] * n_sources,
+#                 }
+#                 df_scene = pd.DataFrame(scene_params)
+#                 df_results_scene = pd.merge(df_results, df_scene, on='record_id')
+
+#                 model_params = {
+#                     "record_id": [f's{i}' for i in range(n_sources)],
+#                     "method_id": [method_id] * n_sources,
+#                     "loc_method": [loc_method] * n_sources,
+#                     "freq_min": [freq_range[0]] * n_sources,
+#                     "freq_max": [freq_range[1]] * n_sources,
+#                     "sv_method": [sv_method] * n_sources,
+#                     "nObs": [nObs] * n_sources,
+#                     "seed": [seed] * n_sources,
+#                     "sv_normalization": [sv_normalization] * n_sources,
+#                 }
+#                 df_model = pd.DataFrame(model_params)
+#                 df_full = pd.merge(df_results_scene, df_model, on='record_id')
+
+#                 results_df = pd.concat([results_df, df_full], ignore_index=True)
+
+#                 doa_freq_grid = np.stack(np.meshgrid(doa_grid, ang_spec_freqs, indexing='ij'), -1)
+#                 ang_spec_dict = {
+#                     "frame_id": frame_id,
+#                     "method_id": method_id,
+#                     "loc_method": loc_method,
+#                     "ang_spec_shape": ang_spec.shape,
+#                     "doa_grid": doa_freq_grid[..., 0],
+#                     "freq_grid": doa_freq_grid[..., 1],
+#                     "ang_spec": ang_spec,
+#                 }
+#                 ang_spec_list.append(ang_spec_dict)
+
+#                 counter_exp += 1
+#                 if counter_exp % 20 == 0:
+#                     save_results(results_df, ang_spec_list, results_dir, csv_filename)
+
+#     if not results_df.empty:
+#         save_results(results_df, ang_spec_list, results_dir, csv_filename) 
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--exp_id", type=int, default=None, help="Experiment case id (e.g., 1, 3, etc.)")
@@ -799,10 +1103,10 @@ def main():
     exp_id = args.exp_id
 
     # Setup directories (assumes figure_dir, output_dir, results_dir are defined globally)
-    global figure_dir, output_dir, results_dir
-    figure_dir = setup_directory(figure_dir, exp_id)
-    output_dir = setup_directory(output_dir, exp_id)
+    # global figure_dir, output_dir, results_dir
     results_dir = args.results_dir
+    # figure_dir = setup_directory(results_dir, exp_id)
+    # output_dir = setup_directory(results_dir, exp_id)
 
     # Optionally, if a Monte Carlo seed override is given, you could filter the data grid
     if args.mc_seed is not None:

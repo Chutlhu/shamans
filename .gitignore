@@ -174,6 +174,8 @@ cython_debug/
 # Exclude some folders
 data/selected_models
 data/SmallTimit
+data/VCTK-Corpus-0.92
+data/LibriSpeech
 data/models
 results/
 results_*/
@@ -184,3 +186,6 @@ shamans/third_party/pyroomacoustics/*
 *.csv
 *.h5
 *.pkl
+backup_results/
+unused_experiments/
+tmp/
